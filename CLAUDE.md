@@ -16,13 +16,28 @@
 
 - 公開URL: https://muddys-games.com/core-breaker/ (GitHub Pages、main ブランチ、ルート)
 - サイト本体: リポジトリ `amataro3-dot.github.io`(Muddy's Games のトップ、運営者情報など)
-- Firebase: **新しいプロジェクトを作る予定(まだ未作成)**。Realtime Database、匿名認証オン。作ったら、ここにプロジェクト名とリージョンを書く
+- Firebase: プロジェクト `core-breaker-ed593`、Realtime Database(シンガポール asia-southeast1)、匿名認証オン(2026-10-26 作成)
+  - データベースはロックモードで作成したまま。セキュリティルールは、オンライン部分を作るときに書いて、作る人に貼ってもらう(仕様書12章の方針)
+  - 接続設定(公開してよい値):
+
+```js
+const firebaseConfig = {
+  apiKey: "AIzaSyAf6G1aYL8QDhQHnaJS9xXlaDPTkWinuig",
+  authDomain: "core-breaker-ed593.firebaseapp.com",
+  databaseURL: "https://core-breaker-ed593-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "core-breaker-ed593",
+  storageBucket: "core-breaker-ed593.firebasestorage.app",
+  messagingSenderId: "623787285512",
+  appId: "1:623787285512:web:ea774e04973834b58705bd"
+};
+```
 - 作りかけのうちは、Muddy's Games のトップページにのせない(AdSense審査のため)
 
 ## 今の状態(2026-10-26)
 
 - 仕様が決まり、`docs/spec.md` にまとめた。コードはまだない
-- 次にやること: Firebaseの新しいプロジェクトを作る → 「書いて」の合図で、仕様書14章の1(縦画面の土台、マップ表示、カメラ、移動とジャンプ)から作る
+- GitHub Pages オン、Firebaseプロジェクト作成済み
+- 次にやること: 「書いて」の合図で、仕様書14章の1(縦画面の土台、マップ表示、カメラ、移動とジャンプ)から作る
 
 ## 作る側(Claude)への注意
 

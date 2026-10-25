@@ -28,7 +28,7 @@
 |---|---|
 | 公開URL | https://muddys-games.com/core-breaker/ |
 | GitHub | ユーザー amataro3-dot / リポジトリ `core-breaker`(GitHub Pages、main) |
-| Firebase | **新しいプロジェクトを作る**。Realtime Database、匿名認証オン |
+| Firebase | プロジェクト `core-breaker-ed593`。Realtime Database(シンガポール)、匿名認証オン |
 | 他のゲーム | labyrinth-game-bc5aa(Labyrinth・Party-Arcade・お絵描き伝言)、fugo-daifugo(富豪大富豪)とは分ける |
 
 **Muddy's Games のサイトのルール**
