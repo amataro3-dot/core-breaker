@@ -1,5 +1,6 @@
 // 画面に描く(ゲーム画面とミニマップ)
 import { T, SOLID, COLORS as C, VIEW_TILES_X } from './config.js';
+import { REACH } from './terrain.js';
 
 // 遠くのビル(背景の飾り)。毎回同じ形にする
 function makeSkyline() {
@@ -25,6 +26,8 @@ export class Renderer {
     this.map = map;
     this.cam = { x: 0, y: 0, ready: false };
     this.skyline = makeSkyline();
+    this.view = { left: 0, top: 0 };
+    this.flashes = []; // 掘った・置いた場所を一瞬光らせる
     // ミニマップに映す範囲(空の上のほうは省く)
     this.miniTop = 8;
     this.miniRows = map.H - this.miniTop - 2;
@@ -77,6 +80,20 @@ export class Renderer {
     g.putImageData(img, 0, 0);
   }
 
+  // 画面の位置(指の場所)を、マップのブロックの位置に直す
+  screenToTile(clientX, clientY) {
+    const r = this.canvas.getBoundingClientRect();
+    return {
+      tx: Math.floor(this.view.left + (clientX - r.left) / this.tile),
+      ty: Math.floor(this.view.top + (clientY - r.top) / this.tile),
+    };
+  }
+
+  // kind: 'dig'(掘った) 'place'(置いた) 'ng'(できない)
+  flash(tx, ty, kind) {
+    this.flashes.push({ tx, ty, kind, t0: performance.now() });
+  }
+
   updateCamera(dt, target, snap = false) {
     const viewW = this.cssW / this.tile;
     const viewH = this.cssH / this.tile;
@@ -100,6 +117,8 @@ export class Renderer {
     const viewH = this.cssH / tile;
     const left = this.cam.x - viewW / 2;
     const top = this.cam.y - viewH / 2;
+    this.view.left = left;
+    this.view.top = top;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
 
     // ブロック座標を画面の位置に(すき間が出ないように整数にそろえる)
@@ -179,10 +198,53 @@ export class Renderer {
     }
 
     this.drawCores(sx, sy, time);
+    this.drawReach(me, sx, sy, tile);
+    this.drawFlashes(sx, sy);
 
     for (const p of players) this.drawPlayer(p, sx, sy, tile, p === me);
 
     this.drawMinimap(players, me, left, top, viewW, viewH);
+  }
+
+  // 掘る・置くが届く範囲(うすい点線の円)
+  drawReach(me, sx, sy, tile) {
+    const { ctx } = this;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0, 243, 255, 0.18)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath();
+    ctx.arc(sx(me.cx), sy(me.cy), REACH * tile, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  drawFlashes(sx, sy) {
+    const { ctx } = this;
+    const now = performance.now();
+    const life = 350;
+    this.flashes = this.flashes.filter((f) => now - f.t0 < life);
+    for (const f of this.flashes) {
+      const a = 1 - (now - f.t0) / life;
+      const color = f.kind === 'dig' ? C.yellow : f.kind === 'place' ? C.cyan : '#ff3b3b';
+      const px = sx(f.tx), py = sy(f.ty);
+      const pw = sx(f.tx + 1) - px, ph = sy(f.ty + 1) - py;
+      const grow = (1 - a) * pw * 0.25;
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.strokeStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 8;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(px - grow + 1, py - grow + 1, pw + grow * 2 - 2, ph + grow * 2 - 2);
+      if (f.kind === 'ng') {
+        ctx.beginPath();
+        ctx.moveTo(px + pw * 0.25, py + ph * 0.25); ctx.lineTo(px + pw * 0.75, py + ph * 0.75);
+        ctx.moveTo(px + pw * 0.75, py + ph * 0.25); ctx.lineTo(px + pw * 0.25, py + ph * 0.75);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
   }
 
   block(px, py, pw, ph, fill, line) {

@@ -64,14 +64,16 @@ export function buildMap() {
     setBoth(d, b + 1, T.WATER);
   }
 
-  // 5. 砂(地面の中と、トンネルの天井の上)
+  // 5. 砂(地面の中と、トンネルの天井の上)。
+  //    砂の下には通常ブロックを1段残す(そこを掘ると砂が落ちてくる)
   for (let d = 24; d <= 27; d++) {
     const s = surfAt(d);
-    for (let y = s + 2; y <= s + 3; y++) setBoth(d, y, T.SAND);
+    const bottom = Math.min(s + 3, tunnelTop(d) - 2);
+    for (let y = bottom - 1; y <= bottom; y++) setBoth(d, y, T.SAND);
   }
   for (let d = 52; d <= 55; d++) {
     const top = tunnelTop(d);
-    for (let y = top - 2; y < top; y++) setBoth(d, y, T.SAND);
+    for (let y = top - 3; y <= top - 2; y++) setBoth(d, y, T.SAND);
   }
 
   // 6. コアと、まわりの硬い壁

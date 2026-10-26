@@ -4,7 +4,7 @@ import { T, SOLID, PHYS } from './config.js';
 const EPS = 1e-4;
 
 // 四角(x, y, w, h)がぶつかるブロックに重なっているか
-function hitsSolid(map, x, y, w, h) {
+export function hitsSolid(map, x, y, w, h) {
   const x0 = Math.floor(x), x1 = Math.floor(x + w - EPS);
   const y0 = Math.floor(y), y1 = Math.floor(y + h - EPS);
   for (let ty = y0; ty <= y1; ty++) {
@@ -56,6 +56,28 @@ export class Player {
   }
 
   get cx() { return this.x + this.w / 2; }
+
+  // 落ちてきたブロックや砂に埋まったら、いちばん近い空いた場所に押し出す
+  unstick(map) {
+    const { w, h } = this;
+    if (!hitsSolid(map, this.x, this.y, w, h)) return false;
+    const footY = Math.floor(this.y + h + 1e-3); // 足もとの段
+    let best = null, bestScore = Infinity;
+    for (let dy = -8; dy <= 4; dy++) {
+      for (let dx = -6; dx <= 6; dx++) {
+        const nx = this.x + dx;
+        const ny = footY + dy - h;
+        if (hitsSolid(map, nx, ny, w, h)) continue;
+        const score = Math.abs(dx) + Math.abs(dy) + (dy > 0 ? 0.5 : 0); // 同じ近さなら上に
+        if (score < bestScore) { bestScore = score; best = [nx, ny]; }
+      }
+    }
+    if (!best) return false;
+    this.x = best[0];
+    this.y = best[1];
+    this.vy = 0;
+    return true;
+  }
   get cy() { return this.y + this.h / 2; }
 
   // input: { x, y (-1〜1。上がマイナス), jumpPressed }
