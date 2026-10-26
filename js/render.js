@@ -28,6 +28,7 @@ export class Renderer {
     this.skyline = makeSkyline();
     this.view = { left: 0, top: 0 };
     this.flashes = []; // 掘った・置いた場所を一瞬光らせる
+    this.shakeAmt = 0; // 画面のゆれ(爆発のとき)
     // ミニマップに映す範囲(空の上のほうは省く)
     this.miniTop = 8;
     this.miniRows = map.H - this.miniTop - 2;
@@ -108,7 +109,13 @@ export class Renderer {
     this.flashes.push({ tx, ty, kind, t0: performance.now() });
   }
 
+  // 画面をゆらす(amount: ゆれの大きさ、ブロック単位)
+  shake(amount) {
+    this.shakeAmt = Math.max(this.shakeAmt, amount);
+  }
+
   updateCamera(dt, target, snap = false) {
+    this.shakeAmt = Math.max(0, this.shakeAmt - dt * 1.2);
     const viewW = this.cssW / this.tile;
     const viewH = this.cssH / this.tile;
     const tx = target.cx;
@@ -125,14 +132,16 @@ export class Renderer {
     this.cam.y = Math.min(Math.max(this.cam.y, viewH / 2), H - viewH / 2);
   }
 
-  draw(players, me, time) {
+  draw(players, me, time, items, effects) {
     const { ctx, map, tile } = this;
     const viewW = this.cssW / tile;
     const viewH = this.cssH / tile;
-    const left = this.cam.x - viewW / 2;
-    const top = this.cam.y - viewH / 2;
-    this.view.left = left;
-    this.view.top = top;
+    // タップの位置計算には、ゆれる前の位置を使う
+    this.view.left = this.cam.x - viewW / 2;
+    this.view.top = this.cam.y - viewH / 2;
+    const shake = this.shakeAmt;
+    const left = this.view.left + (shake ? (Math.random() - 0.5) * shake : 0);
+    const top = this.view.top + (shake ? (Math.random() - 0.5) * shake : 0);
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
 
     // ブロック座標を画面の位置に(すき間が出ないように整数にそろえる)
@@ -213,11 +222,145 @@ export class Renderer {
 
     this.drawCores(sx, sy, time);
     this.drawReach(me, sx, sy, tile);
-    this.drawFlashes(sx, sy);
+    if (items) this.drawBombs(items, sx, sy, tile, time);
 
     for (const p of players) this.drawPlayer(p, sx, sy, tile, p === me);
 
+    if (items) this.drawBullets(items, sx, sy, tile);
+    if (effects) this.drawEffects(effects, sx, sy, tile);
+    if (items) this.drawPreview(items, sx, sy, tile);
+    this.drawFlashes(sx, sy);
+
     this.drawMinimap(players, me, left, top, viewW, viewH);
+  }
+
+  // 飛んでいる爆弾(点滅するランプつき)
+  drawBombs(items, sx, sy, tile, time) {
+    const { ctx } = this;
+    for (const b of items.thrown) {
+      const x = sx(b.x), y = sy(b.y), r = 0.28 * tile;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(b.spin);
+      ctx.fillStyle = '#1b2236';
+      ctx.strokeStyle = C.yellow;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+      // 爆発が近いほど速く点滅する
+      const fast = b.fuse < 0.7 ? 14 : 6;
+      if (Math.sin(time * fast * Math.PI) > 0) {
+        ctx.save();
+        ctx.fillStyle = '#ff3b3b';
+        ctx.shadowColor = '#ff3b3b';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(x, y - r * 0.2, r * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+  }
+
+  // 弾(短い光の線)
+  drawBullets(items, sx, sy, tile) {
+    const { ctx } = this;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(2, tile * 0.12);
+    ctx.shadowBlur = 8;
+    for (const b of items.bullets) {
+      const color = b.team === 'pink' ? C.pink : C.cyan;
+      ctx.strokeStyle = '#ffffff';
+      ctx.shadowColor = color;
+      const tail = 0.018;
+      ctx.beginPath();
+      ctx.moveTo(sx(b.x - b.vx * tail), sy(b.y - b.vy * tail));
+      ctx.lineTo(sx(b.x), sy(b.y));
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // 破片・火花・爆発の光
+  drawEffects(effects, sx, sy, tile) {
+    const { ctx } = this;
+    for (const b of effects.blasts) {
+      const k = b.age / b.life;
+      const r = b.r * tile * (0.5 + k * 0.8);
+      ctx.save();
+      ctx.globalAlpha = 1 - k;
+      const g = ctx.createRadialGradient(sx(b.x), sy(b.y), 0, sx(b.x), sy(b.y), r);
+      g.addColorStop(0, 'rgba(255,255,230,0.95)');
+      g.addColorStop(0.35, 'rgba(255,204,0,0.8)');
+      g.addColorStop(1, 'rgba(255,90,40,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(sx(b.x), sy(b.y), r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    for (const p of effects.parts) {
+      const a = Math.min(1, (p.life - p.age) / 0.25);
+      const s = p.size * tile;
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.fillStyle = p.color;
+      if (p.glow) { ctx.shadowColor = p.color; ctx.shadowBlur = 6; }
+      ctx.fillRect(sx(p.x) - s / 2, sy(p.y) - s / 2, s, s);
+      ctx.restore();
+    }
+  }
+
+  // 狙っているときの表示
+  drawPreview(items, sx, sy, tile) {
+    const pv = items.preview;
+    if (!pv) return;
+    const { ctx } = this;
+    ctx.save();
+    if (pv.kind === 'gun') {
+      ctx.strokeStyle = 'rgba(0, 243, 255, 0.55)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath();
+      ctx.moveTo(sx(pv.x0), sy(pv.y0));
+      ctx.lineTo(sx(pv.x1), sy(pv.y1));
+      ctx.stroke();
+    } else if (pv.kind === 'bomb') {
+      ctx.fillStyle = 'rgba(255, 204, 0, 0.8)';
+      for (const p of pv.points) {
+        ctx.beginPath();
+        ctx.arc(sx(p.x), sy(p.y), p.end ? 4 : 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (pv.kind === 'pick' || pv.kind === 'block') {
+      let tx, ty, color;
+      if (pv.kind === 'pick') {
+        if (!pv.hit) { ctx.restore(); return; }
+        tx = pv.hit.tx; ty = pv.hit.ty;
+        const t = this.map.get(tx, ty);
+        color = t === T.DIRT || t === T.SAND ? C.yellow : '#ff3b3b';
+      } else {
+        tx = pv.tx; ty = pv.ty;
+        color = pv.ok ? C.cyan : '#ff3b3b';
+      }
+      const px = sx(tx), py = sy(ty);
+      const pw = sx(tx + 1) - px, ph = sy(ty + 1) - py;
+      ctx.strokeStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 6;
+      ctx.lineWidth = 2;
+      if (pv.kind === 'block') {
+        ctx.setLineDash([4, 3]);
+        ctx.fillStyle = pv.ok ? 'rgba(0, 243, 255, 0.15)' : 'rgba(255, 59, 59, 0.12)';
+        ctx.fillRect(px, py, pw, ph);
+      }
+      ctx.strokeRect(px + 1, py + 1, pw - 2, ph - 2);
+    }
+    ctx.restore();
   }
 
   // 掘る・置くが届く範囲(うすい点線の円)

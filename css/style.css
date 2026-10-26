@@ -167,6 +167,23 @@ html, body {
   font-family: inherit;
 }
 .item.active { border: 2px solid var(--cyan); color: var(--cyan); }
+.item { position: relative; touch-action: manipulation; }
+.badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--yellow, #ffcc00);
+  color: #070b16;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+}
+.badge.empty { background: #3a4460; color: #8a9bb8; }
 
 #sticks {
   display: flex;

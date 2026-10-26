@@ -80,7 +80,7 @@ export class Player {
   }
   get cy() { return this.y + this.h / 2; }
 
-  // input: { x, y (-1〜1。上がマイナス), jumpPressed }
+  // input: { x, y (-1〜1。上がマイナス), jumpHeld }
   update(dt, input, map) {
     const { w, h } = this;
     const wet = touches(map, this.x, this.y + h * 0.4, w, h * 0.6, T.WATER);
@@ -107,7 +107,8 @@ export class Player {
       this.vy += PHYS.gravity * (wet ? PHYS.waterGravity : 1) * dt;
       const maxFall = wet ? PHYS.waterMaxFall : PHYS.maxFall;
       if (this.vy > maxFall) this.vy = maxFall;
-      if (input.jumpPressed && this.onGround) {
+      // 上に倒している間は、着地するたびにまた跳ぶ
+      if (input.jumpHeld && this.onGround) {
         this.vy = -PHYS.jump * (wet ? 0.6 : 1);
       } else if (wet && input.y < -0.55) {
         this.vy = Math.max(this.vy - 45 * dt, -PHYS.swimUp);

@@ -77,6 +77,24 @@ export class Terrain {
     return true;
   }
 
+  // 爆発: 半径 r の中の通常ブロック・砂・硬いブロックを壊す。
+  // 壊したブロックを [x, y, 種類] のリストで返す(破片を出すため)
+  explode(cx, cy, r) {
+    const out = [];
+    for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) {
+      for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
+        if (Math.hypot(x + 0.5 - cx, y + 0.5 - cy) > r) continue;
+        const t = this.at(x, y);
+        if (t === T.DIRT || t === T.SAND || t === T.HARD) {
+          this.setTile(x, y, T.AIR);
+          out.push([x, y, t]);
+        }
+      }
+    }
+    if (out.length) this.dirty = true;
+    return out;
+  }
+
   // 変わったブロックを [番号, 種類] の形で取り出す(取り出したら空にする)
   takeChanges() {
     const out = [];

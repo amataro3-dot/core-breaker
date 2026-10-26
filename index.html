@@ -26,17 +26,17 @@
   <main id="view">
     <canvas id="game"></canvas>
     <div id="hand"><span class="hand-icon"></span><span id="hand-count">10 / 20</span></div>
-    <div id="hint">ブロックをタップ=掘る / 空きをタップ=置く</div>
+    <div id="hint">右スティックで使う(画面タップでも掘る・置く)</div>
     <div id="tip"></div>
-    <div id="version">v0.2.1 ブロックの物理テスト</div>
+    <div id="version">v0.3 持ち物テスト</div>
   </main>
 
   <section id="controls">
     <div id="items">
-      <button class="item active" type="button">銃</button>
-      <button class="item soon" type="button">爆弾</button>
-      <button class="item soon" type="button">つるはし</button>
-      <button class="item soon" type="button">ブロック</button>
+      <button class="item active" type="button" data-item="gun">銃</button>
+      <button class="item" type="button" data-item="bomb">爆弾<span class="badge" id="bomb-count">3</span></button>
+      <button class="item" type="button" data-item="pick">つるはし</button>
+      <button class="item" type="button" data-item="block">ブロック<span class="badge" id="block-count">10</span></button>
     </div>
     <div id="sticks">
       <div class="stick" id="stick-left">
@@ -44,7 +44,7 @@
         <span class="stick-label">移動 / ジャンプ</span>
       </div>
       <button id="dash" class="soon" type="button">DASH</button>
-      <div class="stick soon" id="stick-right">
+      <div class="stick" id="stick-right">
         <div class="stick-base"><div class="stick-knob"></div></div>
         <span class="stick-label">狙う / 使う</span>
       </div>
