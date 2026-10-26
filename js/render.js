@@ -38,20 +38,34 @@ export class Renderer {
 
   resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
-    const r = this.canvas.getBoundingClientRect();
-    this.cssW = Math.max(1, r.width);
-    this.cssH = Math.max(1, r.height);
-    this.canvas.width = Math.round(this.cssW * dpr);
-    this.canvas.height = Math.round(this.cssH * dpr);
     this.dpr = dpr;
-    this.tile = this.cssW / VIEW_TILES_X; // 1ブロックの大きさ(CSSピクセル)
 
+    // 1. 先にミニマップの高さを決める(これでゲーム画面の高さが変わるため)
     const mr = this.mini.getBoundingClientRect();
     const mw = Math.max(1, mr.width);
     const mh = Math.round(mw * this.miniRows / this.map.W);
     this.mini.style.height = mh + 'px';
     this.mini.width = Math.round(mw * dpr);
     this.mini.height = Math.round(mh * dpr);
+
+    // 2. そのあとで、ゲーム画面の大きさを測る
+    const r = this.canvas.getBoundingClientRect();
+    this.cssW = Math.max(1, r.width);
+    this.cssH = Math.max(1, r.height);
+    this.canvas.width = Math.round(this.cssW * dpr);
+    this.canvas.height = Math.round(this.cssH * dpr);
+    this.tile = this.cssW / VIEW_TILES_X; // 1ブロックの大きさ(CSSピクセル)
+
+    // 3. 画面の大きさがあとから変わったら(アドレスバーが隠れたなど)、自動で測り直す
+    if (!this.observer && window.ResizeObserver) {
+      this.observer = new ResizeObserver(() => {
+        const now = this.canvas.getBoundingClientRect();
+        if (Math.abs(now.width - this.cssW) > 0.5 || Math.abs(now.height - this.cssH) > 0.5) {
+          this.resize();
+        }
+      });
+      this.observer.observe(this.canvas);
+    }
   }
 
   // 地形が変わったときに呼ぶ(ミニマップの地形を作り直す)
