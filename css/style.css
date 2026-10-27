@@ -223,6 +223,73 @@ html, body {
   font-family: inherit;
 }
 
+#change {
+  width: 100%;
+  height: 40px;
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+}
+
+/* 試合の前の画面 */
+#setup {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 5, 12, .82);
+  z-index: 21;
+}
+#setup.show { display: flex; }
+.setup-box {
+  width: min(340px, calc(100% - 32px));
+  padding: 24px 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #0b1020;
+  text-align: center;
+}
+.setup-title {
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  color: var(--cyan);
+  text-shadow: 0 0 14px var(--cyan), 3px 0 0 rgba(255, 51, 102, .6);
+}
+.setup-sub { margin: 4px 0 14px; font-size: 13px; color: var(--muted); }
+.setup-label { margin: 12px 0 6px; font-size: 12px; color: var(--muted); text-align: left; }
+.choice { display: flex; gap: 8px; }
+.choice button {
+  flex: 1;
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: #e2e8f0;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+}
+.choice button.on { border: 2px solid var(--cyan); color: var(--cyan); background: rgba(0, 243, 255, .08); }
+.setup-note { margin: 14px 0 12px; font-size: 11px; color: var(--muted); }
+#start {
+  width: 100%;
+  height: 50px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--cyan);
+  color: #070b16;
+  font-size: 18px;
+  font-weight: 800;
+  font-family: inherit;
+}
+
 /* タイマー: 残り30秒で赤く */
 #timer.hurry { color: #ff3b3b; }
 

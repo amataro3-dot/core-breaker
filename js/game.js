@@ -45,7 +45,7 @@ export class Match {
   }
 
   hitPlayer(p, amount) {
-    if (this.state !== 'play' || p.dead || amount <= 0) return;
+    if (this.state !== 'play' || p.dead || amount <= 0 || p.safeT > 0) return;
     amount = Math.round(amount);
     p.hp = Math.max(0, p.hp - amount);
     p.hurtT = 0.25;
@@ -86,7 +86,10 @@ export class Match {
 
   update(dt) {
     for (const c of this.cores) { c.hitT = Math.max(0, c.hitT - dt); c.repairing = false; }
-    for (const p of this.players) p.hurtT = Math.max(0, p.hurtT - dt);
+    for (const p of this.players) {
+      p.hurtT = Math.max(0, p.hurtT - dt);
+      if (!p.dead) p.safeT = Math.max(0, p.safeT - dt);
+    }
     if (this.state !== 'play') return;
 
     // 復活

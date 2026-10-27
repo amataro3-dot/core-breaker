@@ -222,11 +222,12 @@ export class Renderer {
 
     this.drawCores(sx, sy, time);
     this.drawReach(me, sx, sy, tile);
-    if (items) this.drawBombs(items, sx, sy, tile, time);
+    // 全員の爆弾と弾を描く(狙いの表示は自分のだけ)
+    for (const p of players) if (p.items) this.drawBombs(p.items, sx, sy, tile, time);
 
     for (const p of players) this.drawPlayer(p, sx, sy, tile, p === me);
 
-    if (items) this.drawBullets(items, sx, sy, tile);
+    for (const p of players) if (p.items) this.drawBullets(p.items, sx, sy, tile);
     if (effects) this.drawEffects(effects, sx, sy, tile);
     if (items) this.drawPreview(items, sx, sy, tile);
     this.drawFlashes(sx, sy);
@@ -484,6 +485,8 @@ export class Renderer {
 
   drawPlayer(p, sx, sy, tile, isMe) {
     if (p.dead) return;
+    // 復活してすぐ(ダメージを受けない間)は点滅する
+    if (p.safeT > 0 && Math.floor(p.safeT * 10) % 2 === 0) return;
     const { ctx } = this;
     const color = p.hurtT > 0 ? '#ffffff' : (p.team === 'cyan' ? C.cyan : C.pink);
     const x = sx(p.x), y = sy(p.y);

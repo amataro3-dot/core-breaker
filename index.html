@@ -30,7 +30,7 @@
     <div id="tip"></div>
     <div id="hurt"></div>
     <div id="dead"><div class="dead-title">やられた!</div><div>復活まで <span id="dead-count">5</span></div></div>
-    <div id="version">v0.4.1 ゆっくり版</div>
+    <div id="version">v0.5 AIテスト</div>
   </main>
 
   <section id="controls">
@@ -54,6 +54,27 @@
   </section>
 </div>
 
+<div id="setup">
+  <div class="setup-box">
+    <div class="setup-title">CORE BREAKER</div>
+    <div class="setup-sub">相手のコアを壊せ!</div>
+    <div class="setup-label">人数</div>
+    <div class="choice">
+      <button type="button" data-size="1">1対1</button>
+      <button type="button" data-size="2">2対2</button>
+      <button type="button" data-size="4">4対4</button>
+    </div>
+    <div class="setup-label">AIの強さ</div>
+    <div class="choice">
+      <button type="button" data-level="weak">よわい</button>
+      <button type="button" data-level="normal">ふつう</button>
+      <button type="button" data-level="strong">つよい</button>
+    </div>
+    <div class="setup-note">自分以外はAI(コンピューター)が動かします</div>
+    <button id="start" type="button">スタート</button>
+  </div>
+</div>
+
 <div id="result">
   <div class="result-box">
     <div id="result-title">WIN</div>
@@ -63,6 +84,7 @@
       <div class="rc pink"><span>ピンク</span><b id="result-pink">1000</b></div>
     </div>
     <button id="again" type="button">もう一度</button>
+    <button id="change" type="button">設定を変える</button>
   </div>
 </div>
 

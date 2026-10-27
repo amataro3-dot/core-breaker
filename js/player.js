@@ -59,6 +59,7 @@ export class Player {
     this.dead = false;
     this.respawnT = 0; // 復活までの残り秒数
     this.hurtT = 0;    // ダメージを受けて赤く光る時間
+    this.safeT = 2;    // 復活してすぐは、2秒間ダメージを受けない(点滅する)
   }
 
   get cx() { return this.x + this.w / 2; }

@@ -1,9 +1,9 @@
-// 入口: 1人で試合ができる状態にする(ステップ4)
-// コア・体力・やられる・復活・勝ち負け・タイマー。相手はまだ練習用の的
+// 入口: AIと試合ができる状態にする(ステップ5)
+// 試合の前に人数(1対1 / 2対2 / 4対4)と強さを選ぶ。自分以外はAI
 import { STEP, T, COLORS as C } from './config.js';
 import { buildMap } from './map.js';
 import { Player, hitsSolid } from './player.js';
-import { Dummy } from './dummy.js';
+import { Bot } from './ai.js';
 import { Stick, Input } from './input.js';
 import { Renderer } from './render.js';
 import { Terrain, TERRAIN_HZ, REACH, HAND_MAX } from './terrain.js';
@@ -16,24 +16,19 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
   CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h) { this.rect(x, y, w, h); };
 }
 
+// 人数ごとのAIの役わり(自分のチームは、自分のほかに何人いるか)
+const ROSTER = {
+  1: { ally: [], enemy: ['attack'] },
+  2: { ally: ['defend'], enemy: ['attack', 'defend'] },
+  4: { ally: ['attack', 'tunnel', 'defend'], enemy: ['attack', 'tunnel', 'defend', 'attack'] },
+};
+
 const map = buildMap();
 const terrain = new Terrain(map);
 const effects = new Effects(map);
 const me = new Player('cyan', map.spawns.cyan, 'YOU');
-
-// 練習用の的(ピンク3体)。地上に2体、地下トンネルに1体
-function floorBelow(x, fromY) {
-  let y = fromY;
-  while (y < map.H && !hitsSolid(map, x, y, 0.1, 0.1)) y++;
-  return y;
-}
-const W = map.W;
-const dummies = [
-  new Dummy('pink', { x: W - 18.5, y: map.surf[W - 19] }, 4),
-  new Dummy('pink', { x: W - 27.5, y: map.surf[W - 28] }, 4),
-  new Dummy('pink', { x: W - 29.5, y: floorBelow(W - 29.5, 27) }, 5),
-];
-const players = [me, ...dummies];
+const players = [me];
+const bots = [];
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -41,6 +36,14 @@ const itemButtons = [...document.querySelectorAll('.item')];
 
 const input = new Input(new Stick($('stick-left')), new Stick($('stick-right')));
 const renderer = new Renderer(canvas, $('minimap'), map);
+
+// ---- 設定(前回選んだものを覚えておく) ----
+const settings = { size: 4, level: 'normal' };
+try {
+  const saved = JSON.parse(localStorage.getItem('cb-settings') || '{}');
+  if ([1, 2, 4].includes(saved.size)) settings.size = saved.size;
+  if (['weak', 'normal', 'strong'].includes(saved.level)) settings.level = saved.level;
+} catch (_) { /* 保存できない環境では毎回ふつう */ }
 
 // ---- お知らせ・表示 ----
 let tipTimer = 0;
@@ -51,16 +54,16 @@ function showTip(text) {
   tipTimer = setTimeout(() => $('tip').classList.remove('show'), 1400);
 }
 
-let items = null;
 // 持ち物の表示(選んでいる物、残りの数)を新しくする
 function updateItemsUI() {
-  if (!items) return;
-  for (const b of itemButtons) b.classList.toggle('active', b.dataset.item === items.current);
-  $('hand-count').textContent = `${items.hand} / ${HAND_MAX}`;
-  $('block-count').textContent = items.hand;
-  $('block-count').classList.toggle('empty', items.hand === 0);
-  $('bomb-count').textContent = items.bombs;
-  $('bomb-count').classList.toggle('empty', items.bombs === 0);
+  const it = me.items;
+  if (!it) return;
+  for (const b of itemButtons) b.classList.toggle('active', b.dataset.item === it.current);
+  $('hand-count').textContent = `${it.hand} / ${HAND_MAX}`;
+  $('block-count').textContent = it.hand;
+  $('block-count').classList.toggle('empty', it.hand === 0);
+  $('bomb-count').textContent = it.bombs;
+  $('bomb-count').classList.toggle('empty', it.bombs === 0);
 }
 
 let hurtTimer = 0;
@@ -104,13 +107,50 @@ const match = new Match(map, players, {
     setTimeout(() => showResult(result), result.reason === 'core' ? 1400 : 300);
   },
 });
+match.state = 'setup'; // 設定画面の間は、まだ始まっていない
 
-items = new Items({ map, terrain, effects, players, match }, {
+const world = { map, terrain, effects, players, match };
+
+me.items = new Items(world, {
   flash: (tx, ty, kind) => renderer.flash(tx, ty, kind),
   tip: showTip,
   shake: (a) => renderer.shake(a),
   changed: updateItemsUI,
 });
+
+// AIの持ち物: 画面の表示は出さない。爆発のゆれは、自分の近くのときだけ
+function botItems(bot) {
+  return new Items(world, {
+    flash() {},
+    tip() {},
+    changed() {},
+    shake(a) {
+      if (Math.abs(bot.cx - me.cx) < 14 && Math.abs(bot.cy - me.cy) < 10) renderer.shake(a * 0.7);
+    },
+  });
+}
+
+// チームを組む(自分 + AI)
+function buildTeams() {
+  players.length = 0;
+  bots.length = 0;
+  players.push(me);
+  const roster = ROSTER[settings.size];
+  const add = (team, roles) => {
+    roles.forEach((role, i) => {
+      const base = map.spawns[team];
+      const side = team === 'cyan' ? 1 : -1;
+      // 生まれる場所を少しずつずらす
+      const spawn = { x: base.x + side * (i + 1) * 0.9, y: base.y };
+      const bot = new Bot(team, spawn, role, settings.level, world);
+      bot.items = botItems(bot);
+      bots.push(bot);
+      players.push(bot);
+    });
+  };
+  add('cyan', roster.ally);
+  add('pink', roster.enemy);
+}
 
 function showResult(r) {
   const title = $('result-title');
@@ -126,26 +166,51 @@ function showResult(r) {
   $('result').classList.add('show');
 }
 
-// もう一度: マップも全部、最初の状態にもどす
+// 新しい試合: マップも全部、最初の状態にもどす
 function newMatch() {
   map.tiles.set(buildMap().tiles);
   terrain.changed.clear();
   terrain.dirty = true;
   effects.clear();
+  buildTeams();
   match.reset();
   for (const p of players) p.respawn();
-  items.reset();
+  me.items.reset();
   renderer.redrawMiniTerrain();
   renderer.updateCamera(0, me, true);
   $('result').classList.remove('show');
+  $('setup').classList.remove('show');
 }
+
+// ---- 試合の前の画面 ----
+function showSetup() {
+  $('result').classList.remove('show');
+  for (const b of document.querySelectorAll('[data-size]')) {
+    b.classList.toggle('on', Number(b.dataset.size) === settings.size);
+  }
+  for (const b of document.querySelectorAll('[data-level]')) {
+    b.classList.toggle('on', b.dataset.level === settings.level);
+  }
+  $('setup').classList.add('show');
+}
+for (const b of document.querySelectorAll('[data-size]')) {
+  b.addEventListener('click', () => { settings.size = Number(b.dataset.size); showSetup(); });
+}
+for (const b of document.querySelectorAll('[data-level]')) {
+  b.addEventListener('click', () => { settings.level = b.dataset.level; showSetup(); });
+}
+$('start').addEventListener('click', () => {
+  try { localStorage.setItem('cb-settings', JSON.stringify(settings)); } catch (_) { /* 保存できなくても遊べる */ }
+  newMatch();
+});
 $('again').addEventListener('click', newMatch);
+$('change').addEventListener('click', showSetup);
 
 // ---- 操作 ----
 for (const b of itemButtons) {
   b.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    items.select(b.dataset.item);
+    me.items.select(b.dataset.item);
   });
 }
 
@@ -158,7 +223,7 @@ document.addEventListener('gesturestart', (e) => e.preventDefault());
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   const { tx, ty } = renderer.screenToTile(e.clientX, e.clientY);
-  items.tapAt(me, tx, ty, REACH);
+  me.items.tapAt(me, tx, ty, REACH);
 });
 
 // ---- HUD(上のコア体力・タイマー、自分の体力) ----
@@ -191,24 +256,19 @@ function updateHud() {
   if (me.dead) setText('dead-count', String(Math.max(1, Math.ceil(me.respawnT))));
 }
 
-// ---- 毎フレームの計算と描画 ----
+// ---- 計算 ----
 const TERRAIN_STEP = 1 / TERRAIN_HZ;
 const NO_INPUT = { x: 0, y: 0, jumpHeld: false, aimHeld: false, aim: null, release: null };
-let last = performance.now();
-let acc = 0;
 let terrainAcc = 0;
 let time = 0;
 
-function frame(now) {
-  const dt = Math.min(0.1, (now - last) / 1000);
-  last = now;
-  acc += dt;
-  terrainAcc += dt;
-
+// 1回分(1/60秒)の計算
+function step() {
+  terrainAcc += STEP;
   // ブロックの物理(1秒に10回)
-  while (terrainAcc >= TERRAIN_STEP) {
-    terrain.tick();
+  if (terrainAcc >= TERRAIN_STEP) {
     terrainAcc -= TERRAIN_STEP;
+    terrain.tick();
     // 落ちてきた物に埋まったら押し出す
     for (const p of players) if (!p.dead) p.unstick(map);
     // 地形が変わったらミニマップを描き直す
@@ -216,29 +276,46 @@ function frame(now) {
     if (terrain.takeChanges().length > 0) renderer.redrawMiniTerrain();
   }
 
-  // 動き・持ち物・試合(1秒に60回)
+  // 動き・持ち物・試合
+  const playing = match.state === 'play';
+  const inp = playing ? input.read() : (input.read(), NO_INPUT);
+  const wasDead = me.dead;
+  if (!me.dead) me.update(STEP, inp, map);
+  me.items.update(STEP, me, me.dead ? NO_INPUT : inp);
+  for (const b of bots) {
+    if (!b.dead) b.update(STEP, playing ? b.think(STEP) : NO_INPUT, map);
+    b.items.update(STEP, b, NO_INPUT);
+  }
+  match.update(STEP);
+  if (wasDead && !me.dead) renderer.updateCamera(0, me, true); // 復活したらカメラを自分へ
+  time += STEP;
+}
+
+// ---- 毎フレームの計算と描画 ----
+let last = performance.now();
+let acc = 0;
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  acc += dt;
   while (acc >= STEP) {
-    const playing = match.state === 'play';
-    const inp = playing ? input.read() : (input.read(), NO_INPUT);
-    const wasDead = me.dead;
-    if (!me.dead) me.update(STEP, inp, map);
-    for (const d of dummies) if (!d.dead) d.update(STEP, playing ? d.think(STEP) : NO_INPUT, map);
-    items.update(STEP, me, me.dead ? NO_INPUT : inp);
-    match.update(STEP);
-    if (wasDead && !me.dead) renderer.updateCamera(0, me, true); // 復活したらカメラを自分へ
+    step();
     acc -= STEP;
-    time += STEP;
   }
   effects.update(dt);
   renderer.updateCamera(dt, me);
-  renderer.draw(players, me, time, items, effects);
+  renderer.draw(players, me, time, me.items, effects);
   updateHud();
   requestAnimationFrame(frame);
 }
 
 updateItemsUI();
 renderer.updateCamera(0, me, true);
+showSetup();
 requestAnimationFrame(frame);
 
-// テスト用(画面の確認に使う)
-window.__cb = { map, me, dummies, players, input, renderer, terrain, items, effects, match, hitsSolid, BOMB, newMatch };
+// テスト用(画面の確認に使う)。sim(秒) で早送りできる
+window.__cb = {
+  map, me, bots, players, input, renderer, terrain, effects, match, settings, hitsSolid, BOMB, newMatch,
+  sim(sec) { for (let i = 0; i < sec / STEP; i++) { step(); effects.update(STEP); } },
+};
