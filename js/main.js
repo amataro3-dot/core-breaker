@@ -1,17 +1,17 @@
 // 入口: 最初の画面、ひとりで遊ぶ(AI戦)、みんなで遊ぶ(部屋・ロビー。js/online.js)
 // 試合の前に人数(1対1 / 2対2 / 4対4)と強さを選ぶ。自分以外はAI
 // (v0.6では、みんなで遊ぶのスタートも、各自のAI戦。本当の対戦はステップ7)
-import { STEP, T, COLORS as C } from './config.js';
-import { buildMap } from './map.js';
-import { Player, hitsSolid } from './player.js';
-import { Bot } from './ai.js';
-import { Stick, Input } from './input.js';
-import { Renderer } from './render.js';
-import { Terrain, TERRAIN_HZ, REACH, HAND_MAX } from './terrain.js';
-import { Effects } from './effects.js';
-import { Items, BOMB } from './items.js';
-import { Match, RULES } from './game.js';
-import { initOnline } from './online.js';
+import { STEP, T, COLORS as C } from './config.js?v=0.6.2';
+import { buildMap } from './map.js?v=0.6.2';
+import { Player, hitsSolid } from './player.js?v=0.6.2';
+import { Bot } from './ai.js?v=0.6.2';
+import { Stick, Input } from './input.js?v=0.6.2';
+import { Renderer } from './render.js?v=0.6.2';
+import { Terrain, TERRAIN_HZ, REACH, HAND_MAX } from './terrain.js?v=0.6.2';
+import { Effects } from './effects.js?v=0.6.2';
+import { Items, BOMB } from './items.js?v=0.6.2';
+import { Match, RULES } from './game.js?v=0.6.2';
+import { initOnline } from './online.js?v=0.6.2';
 
 // 古い端末向け: 角の丸い四角が描けないときの代わり
 if (!CanvasRenderingContext2D.prototype.roundRect) {

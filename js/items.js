@@ -1,6 +1,6 @@
 // 持ち物(銃・爆弾・つるはし・ブロック)と、飛んでいる弾・爆弾
-import { T, SOLID } from './config.js';
-import { HAND_MAX, HAND_START } from './terrain.js';
+import { T, SOLID } from './config.js?v=0.6.2';
+import { HAND_MAX, HAND_START } from './terrain.js?v=0.6.2';
 
 export const ITEM_LIST = ['gun', 'bomb', 'pick', 'block'];
 
