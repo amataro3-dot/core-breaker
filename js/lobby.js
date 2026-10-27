@@ -166,6 +166,8 @@ export class Room {
   // ---- ホストだけ: スタート・ロビーにもどす ----
   async start() {
     if (!this.isHost || this.state !== 'lobby') return { ok: false };
+    // 前の試合のデータを消してから始める
+    await this.db.remove(`rooms/${this.code}/g`);
     await this.db.update(`rooms/${this.code}`, {
       state: 'playing', startAt: this.db.now(), round: ((this.data && this.data.round) || 0) + 1,
     });

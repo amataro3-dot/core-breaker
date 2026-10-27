@@ -2,10 +2,10 @@
 // 役わり: 'attack'(地上から攻め)、'tunnel'(地下から攻め)、'defend'(守り)
 // 動きは人と同じ Player の物理を使い、スティックと同じ形の入力を毎回作る。
 // 持ち物(撃つ・投げる・掘る・置く)は、自分の Items を直接使う。
-import { T, SOLID } from './config.js?v=0.6.3';
-import { Player } from './player.js?v=0.6.3';
-import { GUN, PICK } from './items.js?v=0.6.3';
-import { REACH } from './terrain.js?v=0.6.3';
+import { T, SOLID } from './config.js?v=0.7';
+import { Player } from './player.js?v=0.7';
+import { GUN, PICK } from './items.js?v=0.7';
+import { REACH } from './terrain.js?v=0.7';
 
 // 強さごとの数字
 export const SKILL = {

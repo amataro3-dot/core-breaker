@@ -1,6 +1,6 @@
 // 固定マップを作る。左右対称(左がシアン、右がピンク)。
 // 横幅80ブロック(v0.4.1で160→120、v0.6.3で120→80)。d は端からの距離
-import { T, MAP_W as W, MAP_H as H } from './config.js?v=0.6.3';
+import { T, MAP_W as W, MAP_H as H } from './config.js?v=0.7';
 
 const BASE_SURF = 18; // 陣地の地面の高さ(上から何段目か)
 

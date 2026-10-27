@@ -1,17 +1,18 @@
 // 入口: 最初の画面、ひとりで遊ぶ(AI戦)、みんなで遊ぶ(部屋・ロビー。js/online.js)
 // 試合の前に人数(1対1 / 2対2 / 4対4)と強さを選ぶ。自分以外はAI
-// (v0.6では、みんなで遊ぶのスタートも、各自のAI戦。本当の対戦はステップ7)
-import { STEP, T, COLORS as C } from './config.js?v=0.6.3';
-import { buildMap } from './map.js?v=0.6.3';
-import { Player, hitsSolid } from './player.js?v=0.6.3';
-import { Bot } from './ai.js?v=0.6.3';
-import { Stick, Input } from './input.js?v=0.6.3';
-import { Renderer } from './render.js?v=0.6.3';
-import { Terrain, TERRAIN_HZ, REACH, HAND_MAX } from './terrain.js?v=0.6.3';
-import { Effects } from './effects.js?v=0.6.3';
-import { Items, BOMB } from './items.js?v=0.6.3';
-import { Match, RULES } from './game.js?v=0.6.3';
-import { initOnline } from './online.js?v=0.6.3';
+// みんなで遊ぶ: ホストのスマホが試合を計算して、ほかの人に送る(js/sync.js)
+import { STEP, T, COLORS as C } from './config.js?v=0.7';
+import { buildMap } from './map.js?v=0.7';
+import { Player, hitsSolid } from './player.js?v=0.7';
+import { Bot, ROLE_LABEL } from './ai.js?v=0.7';
+import { Sync, RemotePlayer } from './sync.js?v=0.7';
+import { Stick, Input } from './input.js?v=0.7';
+import { Renderer } from './render.js?v=0.7';
+import { Terrain, TERRAIN_HZ, REACH, HAND_MAX } from './terrain.js?v=0.7';
+import { Effects } from './effects.js?v=0.7';
+import { Items, BOMB } from './items.js?v=0.7';
+import { Match, RULES } from './game.js?v=0.7';
+import { initOnline } from './online.js?v=0.7';
 
 // 古い端末向け: 角の丸い四角が描けないときの代わり
 if (!CanvasRenderingContext2D.prototype.roundRect) {
@@ -29,8 +30,10 @@ const map = buildMap();
 const terrain = new Terrain(map);
 const effects = new Effects(map);
 const me = new Player('cyan', map.spawns.cyan, 'YOU');
+me.id = 'me';
 const players = [me];
 const bots = [];
+let sync = null; // みんなで遊ぶの試合中だけ
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -118,6 +121,7 @@ me.items = new Items(world, {
   tip: showTip,
   shake: (a) => renderer.shake(a),
   changed: updateItemsUI,
+  shot: (owner, b) => { if (sync) sync.onShot(owner, b); },
 });
 
 // AIの持ち物: 画面の表示は出さない。爆発のゆれは、自分の近くのときだけ
@@ -129,6 +133,7 @@ function botItems(bot) {
     shake(a) {
       if (Math.abs(bot.cx - me.cx) < 14 && Math.abs(bot.cy - me.cy) < 10) renderer.shake(a * 0.7);
     },
+    shot: (owner, b) => { if (sync) sync.onShot(owner, b); },
   });
 }
 
@@ -169,6 +174,7 @@ function showResult(r) {
   $('result-cyan').textContent = Math.round(r.cyan);
   $('result-pink').textContent = Math.round(r.pink);
   $('result').classList.toggle('online', mode === 'online');
+  $('result').classList.toggle('host', !!(sync && sync.isHost));
   $('result').classList.add('show');
 }
 
@@ -180,12 +186,23 @@ function showScreen(id) {
   for (const s of SCREENS) $(s).classList.toggle('show', s === id);
 }
 
-// 新しい試合: マップも全部、最初の状態にもどす
-function newMatch(opts = { size: settings.size, level: settings.level, team: 'cyan' }) {
+// マップ・効果・オンラインの状態を、最初にもどす
+function resetWorld() {
+  if (sync) { sync.stop(); sync = null; }
   map.tiles.set(buildMap().tiles);
   terrain.changed.clear();
   terrain.dirty = true;
   effects.clear();
+  world.knock = null;
+  world.onBoom = null;
+  me.items.remote = null;
+  me.id = 'me';
+  me.name = 'YOU';
+}
+
+// 新しい試合(ひとりで遊ぶ): マップも全部、最初の状態にもどす
+function newMatch(opts = { size: settings.size, level: settings.level, team: 'cyan' }) {
+  resetWorld();
   buildTeams(opts.size, opts.level, opts.team);
   match.reset();
   for (const p of players) p.respawn();
@@ -198,6 +215,93 @@ function newMatch(opts = { size: settings.size, level: settings.level, team: 'cy
 // 試合を止めて、画面の後ろで待つ(最初の画面やロビーのとき)
 function stopMatch() {
   match.state = 'setup';
+  if (sync) { sync.stop(); sync = null; }
+}
+
+// ---- みんなで遊ぶの試合 ----
+// 空いた枠のAIの役わり(人が多いほど、前から順に使う)
+const BOT_ROLES = { 1: ['attack'], 2: ['defend', 'attack'], 4: ['defend', 'tunnel', 'attack', 'attack'] };
+
+// 全員が同じ並びになるように、部屋の人の一覧からチームを組む
+function onlineRoster(humans, size) {
+  const list = [];
+  for (const team of ['cyan', 'pink']) {
+    const hs = humans.filter((h) => h.team === team);
+    hs.forEach((h, i) => list.push({ id: h.id, name: h.name, team, kind: 'h', slot: i }));
+    BOT_ROLES[size].slice(0, Math.max(0, size - hs.length)).forEach((role, j) => {
+      list.push({ id: `bot-${team}-${j}`, name: ROLE_LABEL[role], team, kind: 'b', role, slot: hs.length + j });
+    });
+  }
+  return list;
+}
+
+const spawnAt = (team, slot) => {
+  const base = map.spawns[team];
+  return { x: base.x + (team === 'cyan' ? 1 : -1) * slot * 0.9, y: base.y };
+};
+
+// opts: { db, base, uid, isHost, humans: [{id, name, team}], size, level }
+function startOnline(opts) {
+  mode = 'online';
+  resetWorld();
+  players.length = 0;
+  bots.length = 0;
+  const roster = onlineRoster(opts.humans, opts.size);
+  const mine = roster.find((r) => r.id === opts.uid);
+  me.team = mine ? mine.team : 'cyan';
+  me.spawn = spawnAt(me.team, mine ? mine.slot : 0);
+  me.id = opts.uid;
+  me.name = mine ? mine.name : 'YOU';
+  players.push(me);
+  for (const r of roster) {
+    if (r.id === opts.uid) continue;
+    const spawn = spawnAt(r.team, r.slot);
+    if (opts.isHost && r.kind === 'b') {
+      const bot = new Bot(r.team, spawn, r.role, opts.level, world);
+      bot.id = r.id;
+      bot.items = botItems(bot);
+      bots.push(bot);
+      players.push(bot);
+    } else {
+      const rp = new RemotePlayer(r.id, r.team, spawn, r.name, r.kind);
+      // ホスト: ほかの人の投げた爆弾は、ホストが動かす
+      if (opts.isHost) rp.items = botItems(rp);
+      players.push(rp);
+    }
+  }
+  match.reset();
+  for (const p of players) p.respawn();
+  me.items.reset();
+  sync = new Sync({
+    db: opts.db, base: opts.base, uid: opts.uid, isHost: opts.isHost, world, me, renderer,
+    hooks: {
+      meHurt: hurtFlash,
+      respawned: () => renderer.updateCamera(0, me, true),
+      coreBroken: (c) => match.hooks.coreBroken(c),
+      result: (r) => setTimeout(() => showResult(r), r.reason === 'core' ? 1400 : 300),
+      // 回線が切れた人の代わりのAI(ホスト)
+      botFor(old) {
+        const bot = new Bot(old.team, old.spawn, 'attack', opts.level, world);
+        bot.id = old.id;
+        bot.name = ROLE_LABEL.attack;
+        bot.x = old.x; bot.y = old.y; bot.hp = old.hp; bot.dead = old.dead; bot.respawnT = old.respawnT;
+        bot.items = old.items || botItems(bot);
+        bots.push(bot);
+        return bot;
+      },
+    },
+  });
+  if (opts.isHost) {
+    world.knock = (p, vx, vy) => sync.knock(p, vx, vy);
+    world.onBoom = (b) => sync.onBoom(b);
+  } else {
+    match.remote = sync;
+    me.items.remote = sync;
+  }
+  sync.start();
+  renderer.redrawMiniTerrain();
+  renderer.updateCamera(0, me, true);
+  showScreen(null);
 }
 
 // ---- 試合の前の画面 ----
@@ -231,8 +335,11 @@ const online = initOnline({
   $,
   showScreen,
   setMode(m) { mode = m; },
-  startMatch(opts) { mode = 'online'; newMatch(opts); },
+  startOnline,
   stopMatch,
+  matchState: () => match.state,
+  get sync() { return sync; },
+  playerLeft(id) { if (sync && sync.isHost) sync.replaceWithBot(id); },
   isPlaying: () => match.state === 'play',
 });
 
@@ -308,17 +415,23 @@ let time = 0;
 
 // 1回分(1/60秒)の計算
 function step() {
+  // みんなで遊ぶでホストでない人は、地形の計算をしない(ホストから届く)
+  const client = sync && !sync.isHost;
   terrainAcc += STEP;
   // ブロックの物理(1秒に10回)
-  if (terrainAcc >= TERRAIN_STEP) {
+  if (terrainAcc >= TERRAIN_STEP && !client) {
     terrainAcc -= TERRAIN_STEP;
     terrain.tick();
     // 落ちてきた物に埋まったら押し出す
-    for (const p of players) if (!p.dead) p.unstick(map);
-    // 地形が変わったらミニマップを描き直す
-    // (オンラインになったら、ここで変わったブロックだけを送る)
-    if (terrain.takeChanges().length > 0) renderer.redrawMiniTerrain();
+    for (const p of players) if (!p.dead && !p.remote) p.unstick(map);
+    // 地形が変わったらミニマップを描き直す。ホストは、変わったブロックを送る
+    const changes = terrain.takeChanges();
+    if (changes.length > 0) {
+      renderer.redrawMiniTerrain();
+      if (sync) sync.addTiles(changes);
+    }
   }
+  if (client) { terrain.changed.clear(); terrainAcc = 0; }
 
   // 動き・持ち物・試合
   const playing = match.state === 'play';
@@ -330,7 +443,12 @@ function step() {
     if (!b.dead) b.update(STEP, playing ? b.think(STEP) : NO_INPUT, map);
     b.items.update(STEP, b, NO_INPUT);
   }
+  // ホスト: ほかの人の投げた爆弾を動かす
+  if (sync && sync.isHost) {
+    for (const p of players) if (p.remote && p.items) p.items.update(STEP, p, NO_INPUT);
+  }
   match.update(STEP);
+  if (sync) sync.tick(STEP);
   if (wasDead && !me.dead) renderer.updateCamera(0, me, true); // 復活したらカメラを自分へ
   time += STEP;
 }
@@ -348,7 +466,7 @@ function frame(now) {
   }
   effects.update(dt);
   renderer.updateCamera(dt, me);
-  renderer.draw(players, me, time, me.items, effects);
+  renderer.draw(players, me, time, me.items, effects, sync ? [sync.ghost] : []);
   updateHud();
   requestAnimationFrame(frame);
 }
@@ -361,5 +479,6 @@ requestAnimationFrame(frame);
 // テスト用(画面の確認に使う)。sim(秒) で早送りできる
 window.__cb = {
   map, me, bots, players, input, renderer, terrain, effects, match, settings, hitsSolid, BOMB, newMatch, online,
+  get sync() { return sync; },
   sim(sec) { for (let i = 0; i < sec / STEP; i++) { step(); effects.update(STEP); } },
 };

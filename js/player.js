@@ -1,5 +1,5 @@
 // プレイヤーの動き(移動、ジャンプ、ハシゴ、水)
-import { T, SOLID, PHYS } from './config.js?v=0.6.3';
+import { T, SOLID, PHYS } from './config.js?v=0.7';
 
 const EPS = 1e-4;
 

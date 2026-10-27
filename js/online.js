@@ -1,8 +1,8 @@
 // みんなで遊ぶ: 名前・部屋を作る/入る・ロビーの画面。
 // 部屋のしくみは js/lobby.js、データベースは js/net.js。
 // URLに ?fake=1 をつけると、にせもののデータベースで動く(画面のテスト用)。
-import { connectFirebase, createFakeStore, fakeDb } from './net.js?v=0.6.3';
-import { Room, cleanName } from './lobby.js?v=0.6.3';
+import { connectFirebase, createFakeStore, fakeDb } from './net.js?v=0.7';
+import { Room, cleanName } from './lobby.js?v=0.7';
 
 const LEVEL_LABEL = { weak: 'よわい', normal: 'ふつう', strong: 'つよい' };
 
@@ -14,6 +14,9 @@ export function initOnline(api) {
   let busy = false;
   let lastRound = 0;   // 何試合目まで始めたか
   let inMatch = false; // みんなで遊ぶの試合をしているところか
+  let matchHost = null;   // 試合を始めたときのホスト
+  let matchHumans = [];   // 試合を始めたときにいた人
+  let staleTimer = 0;
 
   // 前に使った名前
   try { $('name').value = localStorage.getItem('cb-name') || ''; } catch (_) { /* なしでよい */ }
@@ -26,7 +29,9 @@ export function initOnline(api) {
   async function getDb() {
     if (db) return db;
     if (fake) {
-      window.__cbFakeStore = window.__cbFakeStore || createFakeStore();
+      // ほかのタブとも共有する(何台ぶんも同時に試すため)
+      window.__cbFakeStore = window.__cbFakeStore || createFakeStore('cb-fake');
+      await window.__cbFakeStore.ready;
       db = fakeDb(window.__cbFakeStore, 'me-' + Math.random().toString(36).slice(2, 8));
     } else {
       db = await connectFirebase();
@@ -53,7 +58,9 @@ export function initOnline(api) {
       room.onChange = renderLobby;
       room.onClosed = () => {
         room = null;
-        if (!inMatch) { api.showScreen('online'); msg('online-msg', '部屋から出ました'); }
+        if (inMatch) endMatch();
+        api.showScreen('online');
+        msg('online-msg', '部屋から出ました');
       };
       const res = how === 'create'
         ? await room.create(name, 4, 'normal')
@@ -123,8 +130,59 @@ export function initOnline(api) {
     if (playing && round > lastRound && !inMatch) {
       lastRound = round;
       inMatch = true;
-      api.startMatch({ size: r.size, level: r.level, team: me ? me.team : 'cyan' });
+      matchHost = r.data.host;
+      matchHumans = r.players.map((p) => ({ id: p.id, name: p.name, team: p.team }));
+      api.startOnline({
+        db, base: `rooms/${r.code}/g/${round}`, uid: r.uid, isHost: r.isHost,
+        humans: matchHumans, size: r.size, level: r.level,
+      });
+      startStaleCheck();
+      return;
     }
+    if (!inMatch) return;
+
+    // 試合中にホストが抜けた → 試合終了
+    if (r.data.host !== matchHost) {
+      abortMatch('ホストが抜けたので、試合を終わりにしました');
+      if (r.isHost && playing) r.backToLobby();
+      return;
+    }
+    // 試合中に回線が切れた人 → ホストのAIが代わりに動く
+    if (r.isHost) {
+      for (const h of matchHumans) {
+        if (h.id !== r.uid && !r.players.find((p) => p.id === h.id)) api.playerLeft(h.id);
+      }
+    }
+    // 結果のあと、ホストがロビーにもどった → みんなロビーへ
+    if (!playing) {
+      endMatch();
+      api.showScreen('lobby');
+      renderLobby();
+    }
+  }
+
+  function endMatch() {
+    inMatch = false;
+    clearInterval(staleTimer);
+    api.stopMatch();
+  }
+
+  function abortMatch(text) {
+    endMatch();
+    api.showScreen('lobby');
+    renderLobby();
+    msg('lobby-msg', text);
+  }
+
+  // ホストからの様子が止まったとき(ホストのスマホが眠った、など)
+  function startStaleCheck() {
+    clearInterval(staleTimer);
+    staleTimer = setInterval(() => {
+      const s = api.sync;
+      if (inMatch && s && s.stale && api.matchState() === 'play') {
+        abortMatch('ホストからの通信が止まったので、試合を終わりにしました');
+      }
+    }, 1000);
   }
 
   async function act(p) {
@@ -169,24 +227,23 @@ export function initOnline(api) {
     msg('online-msg', '部屋を出ました', true);
   });
 
-  // 結果画面から
+  // 結果画面から(ホストだけ: みんなでロビーにもどる)
   $('to-lobby').addEventListener('click', async () => {
-    inMatch = false;
-    api.stopMatch();
-    if (!room) { api.showScreen('online'); msg('online-msg', '部屋がなくなりました'); return; }
+    if (!room) { endMatch(); api.showScreen('online'); msg('online-msg', '部屋がなくなりました'); return; }
     if (room.isHost && room.state === 'playing') await room.backToLobby();
+    endMatch();
     api.showScreen('lobby');
     renderLobby();
   });
   $('to-title').addEventListener('click', async () => {
-    inMatch = false;
-    api.stopMatch();
+    endMatch();
     if (room) { const r = room; room = null; await r.leave(); }
     api.showScreen('title');
   });
 
   return {
     get room() { return room; },
+    get isHost() { return !!room && room.isHost; },
     get db() { return db; },
   };
 }

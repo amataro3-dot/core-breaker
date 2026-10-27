@@ -1,6 +1,6 @@
 // 試合のルール(コアの体力、プレイヤーの体力、やられる・復活、修理、タイマー、勝ち負け)
 // あとでオンラインにするときは、この計算をホストだけが行う。
-import { T } from './config.js?v=0.6.3';
+import { T } from './config.js?v=0.7';
 
 // 数字は最初の目安(あとで調整)
 export const RULES = {
@@ -22,6 +22,7 @@ export class Match {
   }
 
   reset() {
+    this.remote = null;
     this.timeLeft = RULES.time;
     this.state = 'play'; // 'play'(試合中) か 'end'(終わり)
     this.result = null;
@@ -46,6 +47,8 @@ export class Match {
 
   hitPlayer(p, amount) {
     if (this.state !== 'play' || p.dead || amount <= 0 || p.safeT > 0) return;
+    // オンラインでホストでないとき: 当たったことをホストに知らせるだけ(体力はホストが決める)
+    if (this.remote) { if (p.id) this.remote.send({ k: 'hit', t: p.id, d: Math.round(amount) }); return; }
     amount = Math.round(amount);
     p.hp = Math.max(0, p.hp - amount);
     p.hurtT = 0.25;
@@ -61,6 +64,7 @@ export class Match {
 
   hitCore(c, amount) {
     if (this.state !== 'play' || !c || c.hp <= 0 || amount <= 0) return;
+    if (this.remote) { this.remote.send({ k: 'core', team: c.team, d: Math.round(amount) }); return; }
     amount = Math.round(amount);
     c.hp = Math.max(0, c.hp - amount);
     c.hitT = 0.2;
@@ -85,12 +89,17 @@ export class Match {
   }
 
   update(dt) {
-    for (const c of this.cores) { c.hitT = Math.max(0, c.hitT - dt); c.repairing = false; }
+    for (const c of this.cores) {
+      c.hitT = Math.max(0, c.hitT - dt);
+      if (!this.remote) c.repairing = false;
+    }
     for (const p of this.players) {
       p.hurtT = Math.max(0, p.hurtT - dt);
       if (!p.dead) p.safeT = Math.max(0, p.safeT - dt);
     }
     if (this.state !== 'play') return;
+    // オンラインでホストでないとき: 時間はホストから届く。届くまでの間だけ自分で進める
+    if (this.remote) { this.timeLeft = Math.max(0, this.timeLeft - dt); return; }
 
     // 復活
     for (const p of this.players) {

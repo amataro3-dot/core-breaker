@@ -34,6 +34,7 @@ export async function connectFirebase() {
     uid: cred.user.uid,
     async get(path) { return (await db.get(r(path))).val(); },
     set: (path, v) => db.set(r(path), v),
+    push: (path, v) => db.push(r(path), v),
     update: (path, v) => db.update(r(path), v),
     remove: (path) => db.remove(r(path)),
     onValue(path, cb) { return db.onValue(r(path), (s) => cb(s.val())); },
@@ -44,11 +45,8 @@ export async function connectFirebase() {
 }
 
 // ---- テスト用のにせもののデータベース(メモリの中だけ) ----
-// 何人ぶんでも作れて、同じ store を共有すれば「同じデータベース」を見る。
-export function createFakeStore() {
-  return { root: {}, listeners: new Set() };
-}
-
+// 同じ store を共有すれば「同じデータベース」を見る。
+// channel を指定すると、同じブラウザのほかのタブとも共有する(何台ぶんも同時に試すため)。
 const parts = (path) => path.split('/').filter(Boolean);
 const clone = (v) => (v === undefined || v === null ? null : JSON.parse(JSON.stringify(v)));
 
@@ -63,47 +61,78 @@ function prune(obj) {
   return obj;
 }
 
+function readAt(store, path) {
+  let n = store.root;
+  for (const k of parts(path)) {
+    if (n === null || typeof n !== 'object' || !(k in n)) return null;
+    n = n[k];
+  }
+  return clone(n);
+}
+
+function writeAt(store, path, v) {
+  const ks = parts(path);
+  let n = store.root;
+  for (let i = 0; i < ks.length - 1; i++) {
+    if (typeof n[ks[i]] !== 'object' || n[ks[i]] === null) n[ks[i]] = {};
+    n = n[ks[i]];
+  }
+  if (v === null || v === undefined) delete n[ks[ks.length - 1]];
+  else n[ks[ks.length - 1]] = clone(v);
+  prune(store.root);
+}
+
+function notifyAll(store) {
+  for (const l of [...store.listeners]) {
+    const v = readAt(store, l.path);
+    const s = JSON.stringify(v);
+    if (s !== l.last) { l.last = s; l.cb(v); }
+  }
+}
+
+export function createFakeStore(channel) {
+  const store = { root: {}, listeners: new Set(), chan: null, ready: Promise.resolve() };
+  if (channel && typeof BroadcastChannel !== 'undefined') {
+    const chan = new BroadcastChannel(channel);
+    store.chan = chan;
+    let synced = false;
+    store.ready = new Promise((res) => {
+      setTimeout(res, 250); // ほかのタブがなければ、そのまま始める
+      chan.onmessage = (m) => {
+        const d = m.data;
+        if (d.op === 'w') { for (const [p, v] of d.w) writeAt(store, p, v); notifyAll(store); }
+        else if (d.op === 'hello') chan.postMessage({ op: 'full', root: store.root });
+        else if (d.op === 'full' && !synced) { synced = true; store.root = clone(d.root) || {}; notifyAll(store); res(); }
+      };
+    });
+    chan.postMessage({ op: 'hello' });
+  }
+  return store;
+}
+
 export function fakeDb(store, uid) {
-  const read = (path) => {
-    let n = store.root;
-    for (const k of parts(path)) {
-      if (n === null || typeof n !== 'object' || !(k in n)) return null;
-      n = n[k];
-    }
-    return clone(n);
-  };
-  const write = (path, v) => {
-    const ks = parts(path);
-    let n = store.root;
-    for (let i = 0; i < ks.length - 1; i++) {
-      if (typeof n[ks[i]] !== 'object' || n[ks[i]] === null) n[ks[i]] = {};
-      n = n[ks[i]];
-    }
-    if (v === null || v === undefined) delete n[ks[ks.length - 1]];
-    else n[ks[ks.length - 1]] = clone(v);
-    prune(store.root);
-  };
-  const notify = () => {
-    for (const l of [...store.listeners]) {
-      const v = read(l.path);
-      const s = JSON.stringify(v);
-      if (s !== l.last) { l.last = s; l.cb(v); }
-    }
-  };
   const disconnects = [];
+  const write = (list) => {
+    for (const [p, v] of list) writeAt(store, p, v);
+    if (store.chan) store.chan.postMessage({ op: 'w', w: list });
+    notifyAll(store);
+  };
+  let pushN = 0;
   const db = {
     uid,
-    async get(path) { return read(path); },
-    async set(path, v) { write(path, v); notify(); },
-    async update(path, obj) {
-      for (const [k, v] of Object.entries(obj)) write(`${path}/${k}`, v);
-      notify();
+    async get(path) { return readAt(store, path); },
+    async set(path, v) { write([[path, clone(v)]]); },
+    async update(path, obj) { write(Object.entries(obj).map(([k, v]) => [`${path}/${k}`, clone(v)])); },
+    async remove(path) { write([[path, null]]); },
+    async push(path, v) {
+      const key = `${Date.now().toString(36)}${(pushN++).toString(36).padStart(3, '0')}${uid.slice(-3)}`;
+      write([[`${path}/${key}`, clone(v)]]);
+      return { key };
     },
-    async remove(path) { write(path, null); notify(); },
     onValue(path, cb) {
-      const l = { path, cb, last: undefined };
+      const l = { path, cb, last: undefined, owner: uid };
       store.listeners.add(l);
-      const v = read(path);
+      const v = readAt(store, path);
       l.last = JSON.stringify(v);
       cb(v);
       return () => store.listeners.delete(l);
@@ -117,18 +146,9 @@ export function fakeDb(store, uid) {
     // テスト用: 回線が切れたことにする
     disconnect() {
       for (const l of [...store.listeners]) if (l.owner === uid) store.listeners.delete(l);
-      for (const p of disconnects) write(p, null);
+      write(disconnects.map((p) => [p, null]));
       disconnects.length = 0;
-      notify();
     },
-  };
-  // だれの見張りか覚えておく(切断のテスト用)
-  const orig = db.onValue;
-  db.onValue = (path, cb) => {
-    const off = orig(path, cb);
-    const l = [...store.listeners].pop();
-    if (l) l.owner = uid;
-    return off;
   };
   return db;
 }

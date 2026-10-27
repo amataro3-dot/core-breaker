@@ -1,6 +1,6 @@
 // 画面に描く(ゲーム画面とミニマップ)
-import { T, SOLID, COLORS as C, VIEW_TILES_X } from './config.js?v=0.6.3';
-import { REACH } from './terrain.js?v=0.6.3';
+import { T, SOLID, COLORS as C, VIEW_TILES_X } from './config.js?v=0.7';
+import { REACH } from './terrain.js?v=0.7';
 
 // 遠くのビル(背景の飾り)。毎回同じ形にする
 function makeSkyline() {
@@ -133,7 +133,8 @@ export class Renderer {
     this.cam.y = Math.min(Math.max(this.cam.y, viewH / 2), H - viewH / 2);
   }
 
-  draw(players, me, time, items, effects) {
+  // extras: プレイヤーのものではない弾・爆弾(オンラインで、ほかの人のもの)
+  draw(players, me, time, items, effects, extras = []) {
     const { ctx, map, tile } = this;
     const viewW = this.cssW / tile;
     const viewH = this.cssH / tile;
@@ -225,10 +226,12 @@ export class Renderer {
     this.drawReach(me, sx, sy, tile);
     // 全員の爆弾と弾を描く(狙いの表示は自分のだけ)
     for (const p of players) if (p.items) this.drawBombs(p.items, sx, sy, tile, time);
+    for (const it of extras) this.drawBombs(it, sx, sy, tile, time);
 
     for (const p of players) this.drawPlayer(p, sx, sy, tile, p === me);
 
     for (const p of players) if (p.items) this.drawBullets(p.items, sx, sy, tile);
+    for (const it of extras) this.drawBullets(it, sx, sy, tile);
     if (effects) this.drawEffects(effects, sx, sy, tile);
     if (items) this.drawPreview(items, sx, sy, tile);
     this.drawFlashes(sx, sy);

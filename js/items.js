@@ -1,6 +1,6 @@
 // 持ち物(銃・爆弾・つるはし・ブロック)と、飛んでいる弾・爆弾
-import { T, SOLID } from './config.js?v=0.6.3';
-import { HAND_MAX, HAND_START } from './terrain.js?v=0.6.3';
+import { T, SOLID } from './config.js?v=0.7';
+import { HAND_MAX, HAND_START } from './terrain.js?v=0.7';
 
 export const ITEM_LIST = ['gun', 'bomb', 'pick', 'block'];
 
@@ -36,6 +36,7 @@ export class Items {
   constructor(world, hooks) {
     this.world = world; // { map, terrain, effects, players, match }
     this.hooks = hooks;
+    this.remote = null; // オンラインでホストでないとき: Sync(ホストに知らせる)
     this.reset();
   }
 
@@ -154,11 +155,13 @@ export class Items {
   }
 
   fire(me, aim) {
-    this.bullets.push({
+    const b = {
       x: me.cx + aim.x * 0.5, y: me.cy - 0.2 + aim.y * 0.5,
       vx: aim.x * GUN.speed, vy: aim.y * GUN.speed,
       life: GUN.life, team: me.team,
-    });
+    };
+    this.bullets.push(b);
+    if (this.hooks.shot) this.hooks.shot(me, b); // オンライン: ほかの人に見た目の弾を出してもらう
   }
 
   updateBullets(dt) {
@@ -202,6 +205,8 @@ export class Items {
     if (!hit) return;
     const t = map.get(hit.tx, hit.ty);
     if (terrain.dig(hit.tx, hit.ty)) {
+      // オンライン(ホストでない): 自分の画面ですぐ変えて、ホストに知らせる
+      if (this.remote) this.remote.send({ k: 'dig', i: hit.ty * this.world.map.W + hit.tx });
       effects.debris(hit.tx, hit.ty, t, 6, 4);
       this.hand = Math.min(HAND_MAX, this.hand + 1);
       this.hooks.flash(hit.tx, hit.ty, 'dig');
@@ -256,6 +261,7 @@ export class Items {
       return false;
     }
     this.hand--;
+    if (this.remote) this.remote.send({ k: 'place', i: target.ty * this.world.map.W + target.tx });
     this.hooks.flash(target.tx, target.ty, 'place');
     this.hooks.changed();
     return true;
@@ -309,7 +315,12 @@ export class Items {
     if (this.bombs <= 0) { this.hooks.tip('爆弾がない(8秒で1個たまる)'); return; }
     this.bombs--;
     const v = this.bombVelocity(aim);
-    this.thrown.push({ x: me.cx, y: me.cy - 0.3, vx: v.vx, vy: v.vy, fuse: BOMB.fuse, spin: 0, team: me.team });
+    if (this.remote) {
+      // オンライン(ホストでない): 爆弾はホストが動かす
+      this.remote.send({ k: 'bomb', x: me.cx, y: me.cy - 0.3, vx: v.vx, vy: v.vy });
+    } else {
+      this.thrown.push({ x: me.cx, y: me.cy - 0.3, vx: v.vx, vy: v.vy, fuse: BOMB.fuse, spin: 0, team: me.team });
+    }
     this.hooks.changed();
   }
 
@@ -379,9 +390,12 @@ export class Items {
       const d = Math.hypot(dx, dy);
       if (d > BOMB.pushRange) continue;
       const k = BOMB.push * (1 - d / BOMB.pushRange);
-      p.vx += (dx / (d || 1)) * k;
-      p.vy += (dy / (d || 1)) * k - k * 0.5;
+      const kx = (dx / (d || 1)) * k, ky = (dy / (d || 1)) * k - k * 0.5;
+      // オンライン(ホスト): ほかの人は、その人の画面で飛ばしてもらう
+      if (this.world.knock) this.world.knock(p, kx, ky);
+      else { p.vx += kx; p.vy += ky; }
     }
+    if (this.world.onBoom) this.world.onBoom(b);
     this.hooks.shake(0.35);
   }
 }

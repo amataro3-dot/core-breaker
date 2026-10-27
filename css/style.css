@@ -414,9 +414,10 @@ html, body {
 }
 .team-btn:disabled { opacity: .35; }
 .wait { margin-top: 14px; font-size: 14px; color: var(--yellow); }
-#to-lobby, #to-title { display: none; }
+#to-lobby, #to-title, #result-wait { display: none; }
 #result.online #again, #result.online #change { display: none; }
-#result.online #to-lobby, #result.online #to-title { display: block; }
+#result.online.host #to-lobby, #result.online #to-title { display: block; }
+#result.online:not(.host) #result-wait { display: block; }
 
 /* タイマー: 残り30秒で赤く */
 #timer.hurry { color: #ff3b3b; }
