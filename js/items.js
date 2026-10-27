@@ -5,11 +5,14 @@ import { HAND_MAX, HAND_START } from './terrain.js';
 export const ITEM_LIST = ['gun', 'bomb', 'pick', 'block'];
 
 // 数字は最初の目安(あとで調整)
-export const GUN = { rate: 1 / 6, speed: 40, life: 0.6 };
+// ピストル: 狙って離すと1発。次に撃てるまで0.35秒
+export const GUN = { cool: 0.35, speed: 40, life: 0.6, dmgPlayer: 20, dmgCore: 10 };
 export const BOMB = {
   max: 3, refill: 8, fuse: 2, radius: 2.5,
   gravity: 30, minSpeed: 7, maxSpeed: 19, r: 0.28,
   push: 14, pushRange: 3.5, // 爆風で人が飛ばされる強さと範囲
+  dmgPlayer: 60, dmgRange: 3.2, // 人へのダメージ(中心から1マス以内で最大。遠いほど小さい)
+  dmgCore: 150, coreRange: 3,   // コアへのダメージ
 };
 export const PICK = { rate: 0.25, range: 2.5 };
 export const BLOCK_RANGE = 3;
@@ -31,8 +34,13 @@ const passPick = (t) => t === T.AIR || t === T.WATER || t === T.LADDER;
 export class Items {
   // hooks: { flash(tx,ty,kind), tip(text), shake(amount), changed() }
   constructor(world, hooks) {
-    this.world = world; // { map, terrain, effects, players }
+    this.world = world; // { map, terrain, effects, players, match }
     this.hooks = hooks;
+    this.reset();
+  }
+
+  // 試合の最初の状態にもどす
+  reset() {
     this.current = 'gun';
     this.hand = HAND_START;  // 手持ちのブロック
     this.bombs = BOMB.max;   // 手持ちの爆弾
@@ -42,6 +50,7 @@ export class Items {
     this.bullets = [];
     this.thrown = [];        // 飛んでいる爆弾
     this.preview = null;     // 狙っているときの表示(照準線、軌道、枠)
+    this.hooks.changed();
   }
 
   select(item) {
@@ -71,13 +80,15 @@ export class Items {
 
     this.preview = null;
     const aim = input.aim;
-    switch (this.current) {
+    // やられている間や、試合が終わったあとは使えない
+    const canUse = !me.dead && this.world.match.state === 'play';
+    switch (canUse ? this.current : '') {
       case 'gun':
-        if (aim) {
-          this.preview = { kind: 'gun', ...this.gunLine(me, aim) };
-          if (this.cool <= 0) { this.fire(me, aim); this.cool = GUN.rate; }
-        } else if (input.release && !input.release.cancel && !input.release.aim) {
-          this.fire(me, this.facingAim(me, 0)); // タップ: 向いている方へ1発
+        // 狙っている間は照準線。離したら1発(タップなら向いている方へ)
+        if (aim) this.preview = { kind: 'gun', ...this.gunLine(me, aim), ready: this.cool <= 0 };
+        if (input.release && !input.release.cancel && this.cool <= 0) {
+          this.fire(me, input.release.aim || this.facingAim(me, 0));
+          this.cool = GUN.cool;
         }
         break;
       case 'pick':
@@ -139,18 +150,30 @@ export class Items {
   }
 
   updateBullets(dt) {
-    const { map, effects } = this.world;
+    const { map, effects, players, match } = this.world;
     for (const b of this.bullets) {
       // 速いので細かく分けて進める(ブロックをすり抜けないように)
       const steps = Math.ceil(Math.hypot(b.vx, b.vy) * dt / 0.2);
       for (let i = 0; i < steps && b.life > 0; i++) {
         b.x += b.vx * dt / steps;
         b.y += b.vy * dt / steps;
+        // 人に当たる(銃は仲間には当たらない)
+        const p = players.find((q) => !q.dead && q.team !== b.team &&
+          b.x >= q.x && b.x <= q.x + q.w && b.y >= q.y && b.y <= q.y + q.h);
+        if (p) {
+          match.hitPlayer(p, GUN.dmgPlayer);
+          effects.sparks(b.x, b.y, p.team === 'pink' ? '#ff3366' : '#00f3ff', 7);
+          b.life = 0;
+          break;
+        }
+        const t = map.get(Math.floor(b.x), Math.floor(b.y));
         if (solidAt(map, b.x, b.y)) {
-          effects.sparks(b.x - b.vx * 0.004, b.y - b.vy * 0.004);
+          // 相手のコアに当たったらダメージ
+          const c = match.coreOfTile(t);
+          if (c && c.team !== b.team) match.hitCore(c, GUN.dmgCore);
+          effects.sparks(b.x - b.vx * 0.004, b.y - b.vy * 0.004, c ? '#ffffff' : undefined);
           b.life = 0;
         }
-        // (人やコアへの当たりは、ステップ4で体力を作るときにここへ足す)
       }
       b.life -= dt;
     }
@@ -209,7 +232,7 @@ export class Items {
   }
 
   overlapsPlayer(tx, ty) {
-    return this.world.players.some((p) =>
+    return this.world.players.some((p) => !p.dead &&
       p.x < tx + 1 && p.x + p.w > tx && p.y < ty + 1 && p.y + p.h > ty);
   }
 
@@ -228,6 +251,7 @@ export class Items {
 
   // 画面タップ用(仮の操作。v0.2から残している)
   tapAt(me, tx, ty, reach) {
+    if (me.dead || this.world.match.state !== 'play') return;
     const { map, terrain } = this.world;
     const dist = Math.hypot(tx + 0.5 - me.cx, ty + 0.5 - me.cy);
     if (dist > reach) { this.hooks.flash(tx, ty, 'ng'); this.hooks.tip('遠すぎて届かない'); return; }
@@ -273,7 +297,7 @@ export class Items {
     if (this.bombs <= 0) { this.hooks.tip('爆弾がない(8秒で1個たまる)'); return; }
     this.bombs--;
     const v = this.bombVelocity(aim);
-    this.thrown.push({ x: me.cx, y: me.cy - 0.3, vx: v.vx, vy: v.vy, fuse: BOMB.fuse, spin: 0 });
+    this.thrown.push({ x: me.cx, y: me.cy - 0.3, vx: v.vx, vy: v.vy, fuse: BOMB.fuse, spin: 0, team: me.team });
     this.hooks.changed();
   }
 
@@ -318,12 +342,27 @@ export class Items {
   }
 
   explode(b) {
-    const { terrain, effects, players } = this.world;
+    const { terrain, effects, players, match } = this.world;
     const broken = terrain.explode(b.x, b.y, BOMB.radius);
     for (const [x, y, t] of broken) effects.debris(x, y, t, 5, 6, { x: b.x, y: b.y });
     effects.blast(b.x, b.y, BOMB.radius);
-    // 爆風で人が飛ばされる(ダメージはステップ4で足す)
+    // 爆風: 人(自分も仲間も)にダメージ。近いほど大きい
     for (const p of players) {
+      if (p.dead) continue;
+      const d = Math.hypot(p.cx - b.x, p.cy - b.y);
+      if (d < BOMB.dmgRange) {
+        match.hitPlayer(p, BOMB.dmgPlayer * Math.min(1, (BOMB.dmgRange - d) / (BOMB.dmgRange - 1)));
+      }
+    }
+    // 相手のコアにダメージ(自分のコアには当たらない)
+    for (const c of match.cores) {
+      if (c.team === b.team) continue;
+      const d = match.coreDist(c, b.x, b.y);
+      if (d < BOMB.coreRange) match.hitCore(c, BOMB.dmgCore * Math.min(1, (BOMB.coreRange - d) / (BOMB.coreRange - 1)));
+    }
+    // 爆風で人が飛ばされる
+    for (const p of players) {
+      if (p.dead) continue;
       const dx = p.cx - b.x, dy = p.cy - b.y;
       const d = Math.hypot(dx, dy);
       if (d > BOMB.pushRange) continue;

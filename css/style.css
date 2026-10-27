@@ -129,6 +129,103 @@ html, body {
   color: var(--muted);
   pointer-events: none;
 }
+/* 自分の体力(左上) */
+#hp {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(7, 11, 22, .75);
+  font-size: 12px;
+  font-weight: 700;
+  color: #e2e8f0;
+  pointer-events: none;
+}
+.hp-label { color: var(--cyan); }
+.hp-bar { width: 90px; height: 8px; border-radius: 3px; background: #16233a; overflow: hidden; }
+#hp-fill { height: 100%; width: 100%; background: var(--cyan); transition: width .15s; }
+#hp-fill.mid { background: var(--yellow); }
+#hp-fill.low { background: #ff3b3b; }
+#hp-num { min-width: 24px; text-align: right; }
+
+/* ダメージを受けたとき、画面のふちが赤く光る */
+#hurt {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 40px rgba(255, 40, 60, .85);
+  opacity: 0;
+  transition: opacity .25s;
+  pointer-events: none;
+}
+#hurt.on { opacity: 1; transition: none; }
+
+/* やられたとき */
+#dead {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(40, 0, 10, .45);
+  color: #ffd0d0;
+  font-size: 15px;
+  pointer-events: none;
+}
+#dead.show { display: flex; }
+.dead-title { font-size: 28px; font-weight: 800; color: #ff3366; text-shadow: 0 0 10px #ff3366; }
+#dead-count { font-size: 20px; font-weight: 800; color: #fff; }
+
+/* 試合の結果 */
+#result {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 5, 12, .78);
+  z-index: 20;
+}
+#result.show { display: flex; }
+.result-box {
+  width: min(320px, calc(100% - 32px));
+  padding: 24px 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #0b1020;
+  text-align: center;
+}
+#result-title { font-size: 44px; font-weight: 900; letter-spacing: .06em; }
+#result-title.win { color: var(--cyan); text-shadow: 0 0 16px var(--cyan); }
+#result-title.lose { color: var(--pink); text-shadow: 0 0 16px var(--pink); }
+#result-title.draw { color: var(--yellow); text-shadow: 0 0 16px var(--yellow); }
+#result-reason { margin-top: 4px; font-size: 13px; color: var(--muted); }
+.result-cores { display: flex; gap: 10px; margin: 18px 0; }
+.rc { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid; display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.rc b { font-size: 22px; }
+.rc.cyan { border-color: var(--cyan); color: var(--cyan); }
+.rc.pink { border-color: var(--pink); color: var(--pink); }
+#again {
+  width: 100%;
+  height: 48px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--cyan);
+  color: #070b16;
+  font-size: 17px;
+  font-weight: 800;
+  font-family: inherit;
+}
+
+/* タイマー: 残り30秒で赤く */
+#timer.hurry { color: #ff3b3b; }
+
 /* 一瞬出るお知らせ */
 #tip {
   position: absolute;

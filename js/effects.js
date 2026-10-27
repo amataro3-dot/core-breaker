@@ -16,6 +16,32 @@ export class Effects {
     this.map = map;
     this.parts = [];  // 破片や火花
     this.blasts = []; // 爆発の光の輪
+    this.texts = [];  // ダメージの数字
+  }
+
+  clear() {
+    this.parts = [];
+    this.blasts = [];
+    this.texts = [];
+  }
+
+  // 浮かび上がって消える文字(ダメージの数字など)
+  text(x, y, text, color) {
+    this.texts.push({ x: x + (Math.random() - 0.5) * 0.4, y, text, color, age: 0, life: 0.8 });
+  }
+
+  // やられたとき: チームの色の破片がはじける
+  pop(x, y, color) {
+    for (let i = 0; i < 24; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 3 + Math.random() * 9;
+      this.add({
+        x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 4,
+        size: 0.14 + Math.random() * 0.14, color: Math.random() < 0.7 ? color : '#ffffff',
+        life: 0.6 + Math.random() * 0.6, age: 0,
+        gravity: 25, bounce: true, glow: true,
+      });
+    }
   }
 
   add(p) {
@@ -95,6 +121,8 @@ export class Effects {
       }
     }
     this.parts = this.parts.filter((p) => p.age < p.life);
+    for (const t of this.texts) t.age += dt;
+    this.texts = this.texts.filter((t) => t.age < t.life);
     for (const b of this.blasts) b.age += dt;
     this.blasts = this.blasts.filter((b) => b.age < b.life);
   }

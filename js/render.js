@@ -303,6 +303,20 @@ export class Renderer {
       ctx.fill();
       ctx.restore();
     }
+    // ダメージの数字
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 13px system-ui, sans-serif';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,0,0,.7)';
+    for (const t of effects.texts) {
+      ctx.globalAlpha = Math.min(1, (t.life - t.age) / 0.3);
+      const x = sx(t.x), y = sy(t.y - t.age * 1.2);
+      ctx.strokeText(t.text, x, y);
+      ctx.fillStyle = t.color;
+      ctx.fillText(t.text, x, y);
+    }
+    ctx.restore();
     for (const p of effects.parts) {
       const a = Math.min(1, (p.life - p.age) / 0.25);
       const s = p.size * tile;
@@ -322,7 +336,8 @@ export class Renderer {
     const { ctx } = this;
     ctx.save();
     if (pv.kind === 'gun') {
-      ctx.strokeStyle = 'rgba(0, 243, 255, 0.55)';
+      // 次に撃てるまでは、うすく出す
+      ctx.strokeStyle = pv.ready === false ? 'rgba(0, 243, 255, 0.22)' : 'rgba(0, 243, 255, 0.6)';
       ctx.lineWidth = 1.5;
       ctx.setLineDash([6, 5]);
       ctx.beginPath();
@@ -429,11 +444,16 @@ export class Renderer {
   drawCores(sx, sy, time) {
     const { ctx } = this;
     for (const c of this.map.cores) {
-      const color = c.team === 'cyan' ? C.cyan : C.pink;
+      if (c.hp !== undefined && c.hp <= 0) continue; // 壊れたコアは描かない
+      const ratio = c.hp === undefined ? 1 : c.hp / 1000;
+      let color = c.team === 'cyan' ? C.cyan : C.pink;
+      if (c.hitT > 0) color = '#ffffff'; // 当たった瞬間は白く光る
       const cx = (sx(c.x) + sx(c.x + c.w)) / 2;
       const cy = (sy(c.y) + sy(c.y + c.h)) / 2;
       const r = (sx(c.x + c.w) - sx(c.x)) * 0.32 * (1 + Math.sin(time * 3) * 0.06);
       ctx.save();
+      // 体力が少ないと、ちらつく
+      if (ratio < 0.3) ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(time * 9));
       ctx.shadowColor = color;
       ctx.shadowBlur = 14;
       ctx.fillStyle = color;
@@ -446,12 +466,26 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(cx, cy, r * 0.32, 0, Math.PI * 2);
       ctx.fill();
+      // 修理中は、まわりに光の輪
+      if (c.repairing) {
+        ctx.save();
+        ctx.strokeStyle = '#7dffb0';
+        ctx.shadowColor = '#7dffb0';
+        ctx.shadowBlur = 8;
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(time * 8);
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 1.5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
   }
 
   drawPlayer(p, sx, sy, tile, isMe) {
+    if (p.dead) return;
     const { ctx } = this;
-    const color = p.team === 'cyan' ? C.cyan : C.pink;
+    const color = p.hurtT > 0 ? '#ffffff' : (p.team === 'cyan' ? C.cyan : C.pink);
     const x = sx(p.x), y = sy(p.y);
     const w = p.w * tile, h = p.h * tile;
     const r = w * 0.3;
@@ -478,14 +512,20 @@ export class Renderer {
     const vx = p.facing > 0 ? x + w * 0.45 : x + w * 0.15;
     ctx.fillRect(vx, y + h * 0.14, w * 0.4, h * 0.08);
 
-    // 名前
-    if (isMe) {
-      ctx.fillStyle = '#e2e8f0';
-      ctx.font = '11px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('YOU', x + w / 2, y - 5);
-      ctx.textAlign = 'start';
-    }
+    // 名前と体力バー
+    const label = isMe ? 'YOU' : p.name;
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x + w / 2, y - 9);
+    ctx.textAlign = 'start';
+    const bw = Math.max(w * 1.6, 22), bh = 3;
+    const bx = x + w / 2 - bw / 2, by = y - 6;
+    const ratio = p.hp / p.maxHp;
+    ctx.fillStyle = 'rgba(0,0,0,.6)';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = ratio > 0.5 ? (p.team === 'cyan' ? C.cyan : C.pink) : ratio > 0.25 ? C.yellow : '#ff3b3b';
+    ctx.fillRect(bx, by, bw * ratio, bh);
   }
 
   drawSkyline(left, top, tile) {
@@ -524,12 +564,23 @@ export class Renderer {
     g.drawImage(this.miniTerrain, 0, 0, W, H);
 
     // コア
+    // コア(体力が減ると、色の部分が下から減っていく)
     for (const c of this.map.cores) {
-      g.fillStyle = c.team === 'cyan' ? C.cyan : C.pink;
-      g.fillRect((c.x - 0.5) * s, (c.y - this.miniTop - 0.5) * s, (c.w + 1) * s, (c.h + 1) * s);
+      const color = c.team === 'cyan' ? C.cyan : C.pink;
+      const x = (c.x - 0.5) * s, y = (c.y - this.miniTop - 0.5) * s;
+      const w = (c.w + 1) * s, h = (c.h + 1) * s;
+      const ratio = c.hp === undefined ? 1 : Math.max(0, c.hp / 1000);
+      g.fillStyle = '#05080f';
+      g.fillRect(x, y, w, h);
+      g.fillStyle = color;
+      g.fillRect(x, y + h * (1 - ratio), w, h * ratio);
+      g.strokeStyle = color;
+      g.lineWidth = Math.max(1, this.dpr * 0.7);
+      g.strokeRect(x, y, w, h);
     }
-    // プレイヤー
+    // プレイヤー(やられている人は出さない)
     for (const p of players) {
+      if (p.dead) continue;
       g.fillStyle = p === me ? '#ffffff' : (p.team === 'cyan' ? C.cyan : C.pink);
       g.beginPath();
       g.arc(p.cx * s, (p.cy - this.miniTop) * s, Math.max(2, s * 1.2) , 0, Math.PI * 2);

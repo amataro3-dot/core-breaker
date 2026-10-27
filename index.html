@@ -26,14 +26,16 @@
   <main id="view">
     <canvas id="game"></canvas>
     <div id="hand"><span class="hand-icon"></span><span id="hand-count">10 / 20</span></div>
-    <div id="hint">右スティックで使う(画面タップでも掘る・置く)</div>
+    <div id="hp"><span class="hp-label">HP</span><div class="hp-bar"><div id="hp-fill"></div></div><span id="hp-num">100</span></div>
     <div id="tip"></div>
-    <div id="version">v0.3 持ち物テスト</div>
+    <div id="hurt"></div>
+    <div id="dead"><div class="dead-title">やられた!</div><div>復活まで <span id="dead-count">5</span></div></div>
+    <div id="version">v0.4 試合テスト</div>
   </main>
 
   <section id="controls">
     <div id="items">
-      <button class="item active" type="button" data-item="gun">銃</button>
+      <button class="item active" type="button" data-item="gun">ピストル</button>
       <button class="item" type="button" data-item="bomb">爆弾<span class="badge" id="bomb-count">3</span></button>
       <button class="item" type="button" data-item="pick">つるはし</button>
       <button class="item" type="button" data-item="block">ブロック<span class="badge" id="block-count">10</span></button>
@@ -50,6 +52,18 @@
       </div>
     </div>
   </section>
+</div>
+
+<div id="result">
+  <div class="result-box">
+    <div id="result-title">WIN</div>
+    <div id="result-reason"></div>
+    <div class="result-cores">
+      <div class="rc cyan"><span>シアン</span><b id="result-cyan">1000</b></div>
+      <div class="rc pink"><span>ピンク</span><b id="result-pink">1000</b></div>
+    </div>
+    <button id="again" type="button">もう一度</button>
+  </div>
 </div>
 
 <div id="rotate">スマホを縦にしてね</div>

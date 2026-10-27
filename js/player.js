@@ -36,8 +36,10 @@ const approach = (v, target, step) =>
   v < target ? Math.min(v + step, target) : Math.max(v - step, target);
 
 export class Player {
-  constructor(team, spawn) {
+  constructor(team, spawn, name = '') {
     this.team = team;
+    this.name = name;
+    this.maxHp = 100;
     this.w = 0.75;
     this.h = 1.75;
     this.spawn = spawn;
@@ -53,6 +55,10 @@ export class Player {
     this.climbing = false;
     this.inWater = false;
     this.facing = this.team === 'pink' ? -1 : 1;
+    this.hp = this.maxHp;
+    this.dead = false;
+    this.respawnT = 0; // 復活までの残り秒数
+    this.hurtT = 0;    // ダメージを受けて赤く光る時間
   }
 
   get cx() { return this.x + this.w / 2; }
