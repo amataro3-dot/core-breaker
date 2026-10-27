@@ -17,7 +17,7 @@
 - 公開URL: https://muddys-games.com/core-breaker/ (GitHub Pages、main ブランチ、ルート)
 - サイト本体: リポジトリ `amataro3-dot.github.io`(Muddy's Games のトップ、運営者情報など)
 - Firebase: プロジェクト `core-breaker-ed593`、Realtime Database(シンガポール asia-southeast1)、匿名認証オン(2026-10-26 作成)
-  - データベースはロックモードで作成したまま。セキュリティルールは、オンライン部分を作るときに書いて、作る人に貼ってもらう(仕様書12章の方針)
+  - データベースはロックモードで作成。セキュリティルールは `muddys-notes` の `firebase/core-breaker_rules.json`(2026-10-27 作成。作る人がFirebaseに貼る)
   - 接続設定(公開してよい値):
 
 ```js
