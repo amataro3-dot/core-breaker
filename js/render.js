@@ -30,8 +30,8 @@ export class Renderer {
     this.flashes = []; // 掘った・置いた場所を一瞬光らせる
     this.shakeAmt = 0; // 画面のゆれ(爆発のとき)
     // ミニマップに映す範囲(空の上のほうは省く)
-    this.miniTop = 8;
-    this.miniRows = map.H - this.miniTop - 2;
+    this.miniTop = 10;
+    this.miniRows = 28; // 10〜37段目(見張り台から、地下トンネルの少し下まで)
     this.miniTerrain = document.createElement('canvas');
     this.redrawMiniTerrain();
     this.resize();

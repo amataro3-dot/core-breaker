@@ -102,7 +102,7 @@ export class Player {
     const power = ax < 0.2 ? 0 : Math.min(1, (ax - 0.2) / 0.6);
     let maxSpeed = PHYS.move * (wet ? PHYS.waterMove : 1) * (this.climbing ? 0.6 : 1);
     const target = Math.sign(input.x) * power * maxSpeed;
-    const accel = this.onGround || this.climbing ? 70 : 35;
+    const accel = this.onGround || this.climbing ? PHYS.accelGround : PHYS.accelAir;
     this.vx = approach(this.vx, target, accel * dt);
     if (power > 0) this.facing = Math.sign(input.x);
 
@@ -117,7 +117,7 @@ export class Player {
       if (input.jumpHeld && this.onGround) {
         this.vy = -PHYS.jump * (wet ? 0.6 : 1);
       } else if (wet && input.y < -0.55) {
-        this.vy = Math.max(this.vy - 45 * dt, -PHYS.swimUp);
+        this.vy = Math.max(this.vy - PHYS.swimAccel * dt, -PHYS.swimUp);
       }
     }
 

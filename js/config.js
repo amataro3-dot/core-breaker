@@ -18,20 +18,24 @@ export const SOLID = new Uint8Array(16);
 for (const t of [T.DIRT, T.HARD, T.BEDROCK, T.SAND, T.CORE_C, T.CORE_P]) SOLID[t] = 1;
 
 // マップの大きさ(ブロック数)
-export const MAP_W = 160;
+export const MAP_W = 120;
 export const MAP_H = 48;
 
 // 動きの値(単位: ブロック/秒)
+// v0.4.1で全体を約7割の速さに(重さは 0.7×0.7 にすると、ジャンプの高さが同じまま、ゆっくりになる)
 export const PHYS = {
-  gravity: 60,
-  move: 8.5,
-  jump: 19.6,     // 約3ブロックの高さまで跳べる
-  maxFall: 28,
-  climb: 7,
+  gravity: 29.4,
+  move: 6,
+  jump: 13.7,     // 約3ブロックの高さまで跳べる
+  maxFall: 19.6,
+  climb: 4.9,
   waterMove: 0.55, // 水の中では移動が遅くなる倍率
   waterGravity: 0.35,
-  waterMaxFall: 5,
-  swimUp: 6,
+  waterMaxFall: 3.5,
+  swimUp: 4.2,
+  accelGround: 34, // 走り出し・止まるときの速さの変わり方
+  accelAir: 17,
+  swimAccel: 22,
 };
 
 // 画面に横何ブロック分を映すか

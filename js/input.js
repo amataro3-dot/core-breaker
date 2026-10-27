@@ -1,6 +1,9 @@
 // 画面のスティック(指で動かす操作)
 
 export const AIM_DEAD = 0.25; // これより小さく倒しただけなら「狙っていない」
+// 照準線が指の向きに追いつく速さ(大きいほど速い)。約0.15秒でほぼ追いつく
+const AIM_FOLLOW = 20;
+const STEP = 1 / 60;
 
 export class Stick {
   // el: スティック全体の要素。指はこの範囲で受け付ける
@@ -72,6 +75,7 @@ export class Input {
   constructor(leftStick, rightStick) {
     this.left = leftStick;
     this.right = rightStick;
+    this.smooth = null; // 画面に出ている照準の向き { ang, mag }(指に少し遅れてついてくる)
     this.state = {
       x: 0, y: 0, jumpHeld: false,
       // 右スティック
@@ -91,7 +95,23 @@ export class Input {
 
     const r = this.right;
     s.aimHeld = r.held;
-    s.aim = r.held && r.mag >= AIM_DEAD ? { x: r.x / r.mag, y: r.y / r.mag, mag: Math.min(1, r.mag) } : null;
+    if (r.held && r.mag >= AIM_DEAD) {
+      // 照準の向きを、指の向きへ少しずつ近づける(最初はすぐその向き)
+      const ang = Math.atan2(r.y, r.x);
+      const mag = Math.min(1, r.mag);
+      if (!this.smooth) {
+        this.smooth = { ang, mag };
+      } else {
+        const k = 1 - Math.exp(-AIM_FOLLOW * STEP);
+        let diff = ang - this.smooth.ang;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff)); // いちばん近い回り方で
+        this.smooth.ang += diff * k;
+        this.smooth.mag += (mag - this.smooth.mag) * k;
+      }
+      s.aim = { x: Math.cos(this.smooth.ang), y: Math.sin(this.smooth.ang), mag: this.smooth.mag };
+    } else {
+      s.aim = null;
+    }
     s.release = null;
     if (r.release) {
       const rel = r.release;
@@ -101,10 +121,16 @@ export class Input {
         s.release = { aim: null, cancel: false };             // 軽くタップしただけ
       } else if (lastMag < AIM_DEAD) {
         s.release = { aim: null, cancel: true };              // 倒してから真ん中にもどした = やめる
+      } else if (this.smooth) {
+        // 画面に出ていた照準の向きで使う(見えていたとおりに飛ぶ)
+        const sm = this.smooth;
+        s.release = { aim: { x: Math.cos(sm.ang), y: Math.sin(sm.ang), mag: sm.mag }, cancel: false };
       } else {
+        // 照準が出る前に、すばやくはじいて離した: 指の向きで使う
         s.release = { aim: { x: rel.x / lastMag, y: rel.y / lastMag, mag: Math.min(1, lastMag) }, cancel: false };
       }
     }
+    if (!r.held) this.smooth = null;
     return s;
   }
 }

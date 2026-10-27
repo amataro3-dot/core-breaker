@@ -27,10 +27,11 @@ function floorBelow(x, fromY) {
   while (y < map.H && !hitsSolid(map, x, y, 0.1, 0.1)) y++;
   return y;
 }
+const W = map.W;
 const dummies = [
-  new Dummy('pink', { x: 141.5, y: map.surf[141] }, 4),
-  new Dummy('pink', { x: 130.5, y: map.surf[130] }, 5),
-  new Dummy('pink', { x: 128.5, y: floorBelow(128.5, 27) }, 6),
+  new Dummy('pink', { x: W - 18.5, y: map.surf[W - 19] }, 4),
+  new Dummy('pink', { x: W - 27.5, y: map.surf[W - 28] }, 4),
+  new Dummy('pink', { x: W - 29.5, y: floorBelow(W - 29.5, 27) }, 5),
 ];
 const players = [me, ...dummies];
 
