@@ -1,6 +1,6 @@
 // 持ち物(銃・爆弾・つるはし・ブロック)と、飛んでいる弾・爆弾
-import { T, SOLID } from './config.js?v=0.6.2';
-import { HAND_MAX, HAND_START } from './terrain.js?v=0.6.2';
+import { T, SOLID } from './config.js?v=0.6.3';
+import { HAND_MAX, HAND_START } from './terrain.js?v=0.6.3';
 
 export const ITEM_LIST = ['gun', 'bomb', 'pick', 'block'];
 
@@ -10,7 +10,7 @@ export const GUN = { cool: 0.35, speed: 40, life: 0.6, dmgPlayer: 20, dmgCore: 1
 export const BOMB = {
   max: 3, refill: 8, fuse: 2, radius: 2.5,
   gravity: 30, minSpeed: 7, maxSpeed: 19, r: 0.28,
-  push: 14, pushRange: 3.5, // 爆風で人が飛ばされる強さと範囲
+  push: 9.8, pushRange: 3.5, // 爆風で人が飛ばされる強さと範囲
   dmgPlayer: 60, dmgRange: 3.2, // 人へのダメージ(中心から1マス以内で最大。遠いほど小さい)
   dmgCore: 150, coreRange: 3,   // コアへのダメージ
 };

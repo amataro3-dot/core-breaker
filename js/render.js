@@ -1,6 +1,6 @@
 // 画面に描く(ゲーム画面とミニマップ)
-import { T, SOLID, COLORS as C, VIEW_TILES_X } from './config.js?v=0.6.2';
-import { REACH } from './terrain.js?v=0.6.2';
+import { T, SOLID, COLORS as C, VIEW_TILES_X } from './config.js?v=0.6.3';
+import { REACH } from './terrain.js?v=0.6.3';
 
 // 遠くのビル(背景の飾り)。毎回同じ形にする
 function makeSkyline() {
@@ -44,7 +44,8 @@ export class Renderer {
     // 1. 先にミニマップの高さを決める(これでゲーム画面の高さが変わるため)
     const mr = this.mini.getBoundingClientRect();
     const mw = Math.max(1, mr.width);
-    const mh = Math.round(mw * this.miniRows / this.map.W);
+    // 高さは、横120ブロックのときと同じにする(マップが狭いぶん、横に引きのばして描く)
+    const mh = Math.round(mw * this.miniRows / 120);
     this.mini.style.height = mh + 'px';
     this.mini.width = Math.round(mw * dpr);
     this.mini.height = Math.round(mh * dpr);
@@ -562,7 +563,8 @@ export class Renderer {
   drawMinimap(players, me, left, top, viewW, viewH) {
     const g = this.miniCtx;
     const W = this.mini.width, H = this.mini.height;
-    const s = W / this.map.W;
+    const s = W / this.map.W;           // 横の1ブロック
+    const t = H / this.miniRows;          // 縦の1ブロック
     g.imageSmoothingEnabled = false;
     g.drawImage(this.miniTerrain, 0, 0, W, H);
 
@@ -570,8 +572,8 @@ export class Renderer {
     // コア(体力が減ると、色の部分が下から減っていく)
     for (const c of this.map.cores) {
       const color = c.team === 'cyan' ? C.cyan : C.pink;
-      const x = (c.x - 0.5) * s, y = (c.y - this.miniTop - 0.5) * s;
-      const w = (c.w + 1) * s, h = (c.h + 1) * s;
+      const x = (c.x - 0.5) * s, y = (c.y - this.miniTop - 0.5) * t;
+      const w = (c.w + 1) * s, h = (c.h + 1) * t;
       const ratio = c.hp === undefined ? 1 : Math.max(0, c.hp / 1000);
       g.fillStyle = '#05080f';
       g.fillRect(x, y, w, h);
@@ -586,14 +588,14 @@ export class Renderer {
       if (p.dead) continue;
       g.fillStyle = p === me ? '#ffffff' : (p.team === 'cyan' ? C.cyan : C.pink);
       g.beginPath();
-      g.arc(p.cx * s, (p.cy - this.miniTop) * s, Math.max(2, s * 1.2) , 0, Math.PI * 2);
+      g.arc(p.cx * s, (p.cy - this.miniTop) * t, Math.max(2, t * 1.2), 0, Math.PI * 2);
       g.fill();
     }
     // 今見えている範囲
     g.strokeStyle = 'rgba(255,255,255,.8)';
     g.lineWidth = Math.max(1, this.dpr);
     g.setLineDash([3 * this.dpr, 2 * this.dpr]);
-    g.strokeRect(left * s, (top - this.miniTop) * s, viewW * s, viewH * s);
+    g.strokeRect(left * s, (top - this.miniTop) * t, viewW * s, viewH * t);
     g.setLineDash([]);
   }
 }

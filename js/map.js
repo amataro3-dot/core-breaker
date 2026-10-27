@@ -1,6 +1,6 @@
 // 固定マップを作る。左右対称(左がシアン、右がピンク)。
-// 横幅120ブロック(v0.4.1で160から縮めた)。d は端からの距離
-import { T, MAP_W as W, MAP_H as H } from './config.js?v=0.6.2';
+// 横幅80ブロック(v0.4.1で160→120、v0.6.3で120→80)。d は端からの距離
+import { T, MAP_W as W, MAP_H as H } from './config.js?v=0.6.3';
 
 const BASE_SURF = 18; // 陣地の地面の高さ(上から何段目か)
 
@@ -59,7 +59,7 @@ export function buildMap() {
   }
 
   // 4. 水たまり(トンネルの床を2段掘って水を入れる)
-  for (let d = 45; d <= 50; d++) {
+  for (let d = 31; d <= 35; d++) {
     const b = tunnelBottom(d);
     setBoth(d, b, T.WATER);
     setBoth(d, b + 1, T.WATER);
@@ -67,12 +67,12 @@ export function buildMap() {
 
   // 5. 砂(地面の中と、トンネルの天井の上)。
   //    砂の下には通常ブロックを1段残す(そこを掘ると砂が落ちてくる)
-  for (let d = 19; d <= 22; d++) {
+  for (let d = 15; d <= 17; d++) {
     const s = surfAt(d);
     const bottom = Math.min(s + 3, tunnelTop(d) - 2);
     for (let y = bottom - 1; y <= bottom; y++) setBoth(d, y, T.SAND);
   }
-  for (let d = 38; d <= 41; d++) {
+  for (let d = 28; d <= 30; d++) {
     const top = tunnelTop(d);
     for (let y = top - 3; y <= top - 2; y++) setBoth(d, y, T.SAND);
   }
@@ -93,24 +93,24 @@ export function buildMap() {
     for (let y = top; y <= bottom; y++) setBoth(d, y, T.LADDER);
   };
   ladder(11); // 陣地の中
-  ladder(30);
-  ladder(59); // 真ん中(2本)
+  ladder(23);
+  ladder(39); // 真ん中(2本)
 
   // 8. 地上の物陰と建物
   {
-    const s = surfAt(24);
-    setBoth(24, s - 1, T.DIRT);
-    setBoth(24, s - 2, T.DIRT);
+    const s = surfAt(19);
+    setBoth(19, s - 1, T.DIRT);
+    setBoth(19, s - 2, T.DIRT);
   }
-  for (let d = 36; d <= 37; d++) {
+  for (let d = 26; d <= 27; d++) {
     const s = surfAt(d);
     for (let y = s - 2; y < s; y++) setBoth(d, y, T.HARD);
   }
   {
     // 真ん中の見張り台(硬いブロックは崩れない予定)。地面から3段、足場から2段跳んで登れる
-    const s = surfAt(59);
-    for (let d = 49; d <= 52; d++) setBoth(d, s - 3, T.HARD);
-    for (let d = 55; d <= 59; d++) setBoth(d, s - 5, T.HARD);
+    const s = surfAt(39);
+    for (let d = 31; d <= 34; d++) setBoth(d, s - 3, T.HARD);
+    for (let d = 36; d <= 39; d++) setBoth(d, s - 5, T.HARD);
   }
 
   // 9. 岩盤(一番下と左右の端)
