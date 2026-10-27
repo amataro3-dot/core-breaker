@@ -30,7 +30,7 @@
     <div id="tip"></div>
     <div id="hurt"></div>
     <div id="dead"><div class="dead-title">やられた!</div><div>復活まで <span id="dead-count">5</span></div></div>
-    <div id="version">v0.5 AIテスト</div>
+    <div id="version">v0.6 ロビーテスト</div>
   </main>
 
   <section id="controls">
@@ -54,6 +54,74 @@
   </section>
 </div>
 
+<div id="title" class="screen">
+  <div class="setup-box">
+    <div class="setup-title">CORE BREAKER</div>
+    <div class="setup-sub">相手のコアを壊せ!</div>
+    <button id="go-solo" class="big-btn" type="button">ひとりで遊ぶ</button>
+    <div class="setup-note">AI(コンピューター)と戦う</div>
+    <button id="go-online" class="big-btn outline" type="button">みんなで遊ぶ</button>
+    <div class="setup-note">部屋を作って、友だちと入る(最大8人)</div>
+  </div>
+</div>
+
+<div id="online" class="screen">
+  <div class="setup-box">
+    <div class="screen-title">みんなで遊ぶ</div>
+    <div class="setup-label">名前(10文字まで)</div>
+    <input id="name" class="field" type="text" maxlength="10" autocomplete="off" placeholder="なまえ">
+    <button id="create" class="big-btn" type="button">部屋を作る</button>
+    <div class="or">または</div>
+    <div class="setup-label">部屋のコード(4けた)</div>
+    <div class="join-row">
+      <input id="code" class="field" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="1234">
+      <button id="join" class="mid-btn" type="button">入る</button>
+    </div>
+    <div id="online-msg" class="msg"></div>
+    <button id="online-back" class="sub-btn" type="button">もどる</button>
+  </div>
+</div>
+
+<div id="lobby" class="screen">
+  <div class="setup-box lobby-box">
+    <div class="setup-label center">部屋のコード</div>
+    <div id="lobby-code">0000</div>
+    <div class="setup-note">友だちにこの番号を教えてね</div>
+    <div id="lobby-host">
+      <div class="setup-label">人数</div>
+      <div class="choice">
+        <button type="button" data-lsize="1">1対1</button>
+        <button type="button" data-lsize="2">2対2</button>
+        <button type="button" data-lsize="4">4対4</button>
+      </div>
+      <div class="setup-label">AIの強さ</div>
+      <div class="choice">
+        <button type="button" data-llevel="weak">よわい</button>
+        <button type="button" data-llevel="normal">ふつう</button>
+        <button type="button" data-llevel="strong">つよい</button>
+      </div>
+    </div>
+    <div id="lobby-info" class="lobby-info"></div>
+    <div class="teams">
+      <div class="team-col cyan">
+        <div class="team-head">シアン</div>
+        <div id="team-cyan"></div>
+        <button id="to-cyan" class="team-btn" type="button">シアンに入る</button>
+      </div>
+      <div class="team-col pink">
+        <div class="team-head">ピンク</div>
+        <div id="team-pink"></div>
+        <button id="to-pink" class="team-btn" type="button">ピンクに入る</button>
+      </div>
+    </div>
+    <div id="lobby-hint" class="setup-note"></div>
+    <button id="lobby-start" class="big-btn" type="button">スタート</button>
+    <div id="lobby-wait" class="wait">ホストが始めるのを待っています…</div>
+    <div id="lobby-msg" class="msg"></div>
+    <button id="lobby-leave" class="sub-btn" type="button">部屋を出る</button>
+  </div>
+</div>
+
 <div id="setup">
   <div class="setup-box">
     <div class="setup-title">CORE BREAKER</div>
@@ -72,6 +140,7 @@
     </div>
     <div class="setup-note">自分以外はAI(コンピューター)が動かします</div>
     <button id="start" type="button">スタート</button>
+    <button id="setup-back" class="sub-btn" type="button">もどる</button>
   </div>
 </div>
 
@@ -85,6 +154,8 @@
     </div>
     <button id="again" type="button">もう一度</button>
     <button id="change" type="button">設定を変える</button>
+    <button id="to-lobby" class="big-btn" type="button">ロビーにもどる</button>
+    <button id="to-title" class="sub-btn" type="button">最初の画面へ</button>
   </div>
 </div>
 

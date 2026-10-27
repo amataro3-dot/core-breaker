@@ -1,5 +1,6 @@
-// 入口: AIと試合ができる状態にする(ステップ5)
+// 入口: 最初の画面、ひとりで遊ぶ(AI戦)、みんなで遊ぶ(部屋・ロビー。js/online.js)
 // 試合の前に人数(1対1 / 2対2 / 4対4)と強さを選ぶ。自分以外はAI
+// (v0.6では、みんなで遊ぶのスタートも、各自のAI戦。本当の対戦はステップ7)
 import { STEP, T, COLORS as C } from './config.js';
 import { buildMap } from './map.js';
 import { Player, hitsSolid } from './player.js';
@@ -10,13 +11,14 @@ import { Terrain, TERRAIN_HZ, REACH, HAND_MAX } from './terrain.js';
 import { Effects } from './effects.js';
 import { Items, BOMB } from './items.js';
 import { Match, RULES } from './game.js';
+import { initOnline } from './online.js';
 
 // 古い端末向け: 角の丸い四角が描けないときの代わり
 if (!CanvasRenderingContext2D.prototype.roundRect) {
   CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h) { this.rect(x, y, w, h); };
 }
 
-// 人数ごとのAIの役わり(自分のチームは、自分のほかに何人いるか)
+// 人数ごとのAIの役わり(ally = 自分のチームの、自分のほかのAI)
 const ROSTER = {
   1: { ally: [], enemy: ['attack'] },
   2: { ally: ['defend'], enemy: ['attack', 'defend'] },
@@ -130,26 +132,29 @@ function botItems(bot) {
   });
 }
 
-// チームを組む(自分 + AI)
-function buildTeams() {
+// チームを組む(自分 + AI)。自分はシアンでもピンクでもよい
+function buildTeams(size, level, myTeam) {
   players.length = 0;
   bots.length = 0;
+  me.team = myTeam;
+  me.spawn = map.spawns[myTeam];
   players.push(me);
-  const roster = ROSTER[settings.size];
+  const roster = ROSTER[size];
   const add = (team, roles) => {
     roles.forEach((role, i) => {
       const base = map.spawns[team];
       const side = team === 'cyan' ? 1 : -1;
       // 生まれる場所を少しずつずらす
       const spawn = { x: base.x + side * (i + 1) * 0.9, y: base.y };
-      const bot = new Bot(team, spawn, role, settings.level, world);
+      const bot = new Bot(team, spawn, role, level, world);
       bot.items = botItems(bot);
       bots.push(bot);
       players.push(bot);
     });
   };
-  add('cyan', roster.ally);
-  add('pink', roster.enemy);
+  const enemyTeam = myTeam === 'cyan' ? 'pink' : 'cyan';
+  add(myTeam, roster.ally);
+  add(enemyTeam, roster.enemy);
 }
 
 function showResult(r) {
@@ -163,35 +168,48 @@ function showResult(r) {
     : '時間切れ(コアの残り体力で判定)';
   $('result-cyan').textContent = Math.round(r.cyan);
   $('result-pink').textContent = Math.round(r.pink);
+  $('result').classList.toggle('online', mode === 'online');
   $('result').classList.add('show');
 }
 
+let mode = 'solo'; // 'solo'(ひとりで) か 'online'(みんなで)
+
+// 画面の切りかえ(最初の画面・設定・みんなで・ロビー・結果)
+const SCREENS = ['title', 'setup', 'online', 'lobby', 'result'];
+function showScreen(id) {
+  for (const s of SCREENS) $(s).classList.toggle('show', s === id);
+}
+
 // 新しい試合: マップも全部、最初の状態にもどす
-function newMatch() {
+function newMatch(opts = { size: settings.size, level: settings.level, team: 'cyan' }) {
   map.tiles.set(buildMap().tiles);
   terrain.changed.clear();
   terrain.dirty = true;
   effects.clear();
-  buildTeams();
+  buildTeams(opts.size, opts.level, opts.team);
   match.reset();
   for (const p of players) p.respawn();
   me.items.reset();
   renderer.redrawMiniTerrain();
   renderer.updateCamera(0, me, true);
-  $('result').classList.remove('show');
-  $('setup').classList.remove('show');
+  showScreen(null);
+}
+
+// 試合を止めて、画面の後ろで待つ(最初の画面やロビーのとき)
+function stopMatch() {
+  match.state = 'setup';
 }
 
 // ---- 試合の前の画面 ----
 function showSetup() {
-  $('result').classList.remove('show');
+  mode = 'solo';
   for (const b of document.querySelectorAll('[data-size]')) {
     b.classList.toggle('on', Number(b.dataset.size) === settings.size);
   }
   for (const b of document.querySelectorAll('[data-level]')) {
     b.classList.toggle('on', b.dataset.level === settings.level);
   }
-  $('setup').classList.add('show');
+  showScreen('setup');
 }
 for (const b of document.querySelectorAll('[data-size]')) {
   b.addEventListener('click', () => { settings.size = Number(b.dataset.size); showSetup(); });
@@ -203,8 +221,20 @@ $('start').addEventListener('click', () => {
   try { localStorage.setItem('cb-settings', JSON.stringify(settings)); } catch (_) { /* 保存できなくても遊べる */ }
   newMatch();
 });
-$('again').addEventListener('click', newMatch);
+$('again').addEventListener('click', () => newMatch());
 $('change').addEventListener('click', showSetup);
+$('setup-back').addEventListener('click', () => showScreen('title'));
+$('go-solo').addEventListener('click', showSetup);
+
+// みんなで遊ぶ(部屋・ロビー)
+const online = initOnline({
+  $,
+  showScreen,
+  setMode(m) { mode = m; },
+  startMatch(opts) { mode = 'online'; newMatch(opts); },
+  stopMatch,
+  isPlaying: () => match.state === 'play',
+});
 
 // ---- 操作 ----
 for (const b of itemButtons) {
@@ -311,11 +341,11 @@ function frame(now) {
 
 updateItemsUI();
 renderer.updateCamera(0, me, true);
-showSetup();
+showScreen('title');
 requestAnimationFrame(frame);
 
 // テスト用(画面の確認に使う)。sim(秒) で早送りできる
 window.__cb = {
-  map, me, bots, players, input, renderer, terrain, effects, match, settings, hitsSolid, BOMB, newMatch,
+  map, me, bots, players, input, renderer, terrain, effects, match, settings, hitsSolid, BOMB, newMatch, online,
   sim(sec) { for (let i = 0; i < sec / STEP; i++) { step(); effects.update(STEP); } },
 };
