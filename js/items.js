@@ -53,6 +53,18 @@ export class Items {
     this.hooks.changed();
   }
 
+  // 復活したとき: 持ち物を最初の状態にもどす(飛んでいる弾・爆弾はそのまま)
+  resetLoadout() {
+    this.current = 'gun';
+    this.hand = HAND_START;
+    this.bombs = BOMB.max;
+    this.refillT = 0;
+    this.cool = 0;
+    this.warned = false;
+    this.preview = null;
+    this.hooks.changed();
+  }
+
   select(item) {
     if (ITEM_LIST.includes(item)) this.current = item;
     this.hooks.changed();

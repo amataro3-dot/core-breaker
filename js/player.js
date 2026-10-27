@@ -47,6 +47,8 @@ export class Player {
   }
 
   respawn() {
+    // 持ち物も最初の状態に(爆弾3個・ブロック10個・ピストル)
+    if (this.items) this.items.resetLoadout();
     this.x = this.spawn.x - this.w / 2;
     this.y = this.spawn.y - this.h;
     this.vx = 0;

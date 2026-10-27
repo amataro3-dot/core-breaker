@@ -543,3 +543,10 @@ html, body {
 @media (orientation: landscape) and (max-height: 500px) {
   #rotate { display: flex; }
 }
+
+/* iPhone(Safari)は「拡大しない」の設定を無視することがあるので、
+   すべての部分に「ダブルタップ・ピンチで拡大しない」を指定する */
+#app, #app * { touch-action: none; }
+#rotate, #rotate * { touch-action: none; }
+/* 画面の上に出る画面(最初の画面・ロビーなど)は、縦のスクロールだけできる */
+.screen, .screen *, #setup, #setup *, #result, #result * { touch-action: pan-y; }

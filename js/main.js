@@ -248,6 +248,20 @@ window.addEventListener('resize', () => renderer.resize());
 // 画面の長押しメニューやダブルタップの拡大を止める
 document.addEventListener('contextmenu', (e) => e.preventDefault());
 document.addEventListener('gesturestart', (e) => e.preventDefault());
+document.addEventListener('gesturechange', (e) => e.preventDefault());
+document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
+// iPhone: 同じ場所をすばやく2回タップしたときに拡大が始まるのを止める
+// (ちがう場所のタップや、名前などの入力欄は、ふつうに使える)
+let lastTap = { t: 0, x: -99, y: -99 };
+document.addEventListener('touchend', (e) => {
+  const touch = e.changedTouches && e.changedTouches[0];
+  if (!touch) return;
+  const now = Date.now();
+  const typing = e.target.closest && e.target.closest('input, textarea');
+  const near = Math.hypot(touch.clientX - lastTap.x, touch.clientY - lastTap.y) < 40;
+  if (!typing && near && now - lastTap.t < 300) e.preventDefault();
+  lastTap = { t: now, x: touch.clientX, y: touch.clientY };
+}, { passive: false });
 
 // 画面タップで掘る・置く(v0.2からの操作。持ち物に関係なく使える)
 canvas.addEventListener('pointerdown', (e) => {
