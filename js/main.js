@@ -1,18 +1,18 @@
 // 入口: 最初の画面、ひとりで遊ぶ(AI戦)、みんなで遊ぶ(部屋・ロビー。js/online.js)
 // 試合の前に人数(1対1 / 2対2 / 4対4)と強さを選ぶ。自分以外はAI
 // みんなで遊ぶ: ホストのスマホが試合を計算して、ほかの人に送る(js/sync.js)
-import { STEP, T, COLORS as C } from './config.js?v=0.7';
-import { buildMap } from './map.js?v=0.7';
-import { Player, hitsSolid } from './player.js?v=0.7';
-import { Bot, ROLE_LABEL } from './ai.js?v=0.7';
-import { Sync, RemotePlayer } from './sync.js?v=0.7';
-import { Stick, Input } from './input.js?v=0.7';
-import { Renderer } from './render.js?v=0.7';
-import { Terrain, TERRAIN_HZ, REACH, HAND_MAX } from './terrain.js?v=0.7';
-import { Effects } from './effects.js?v=0.7';
-import { Items, BOMB } from './items.js?v=0.7';
-import { Match, RULES } from './game.js?v=0.7';
-import { initOnline } from './online.js?v=0.7';
+import { STEP, T, COLORS as C } from './config.js?v=0.7.1';
+import { buildMap } from './map.js?v=0.7.1';
+import { Player, hitsSolid } from './player.js?v=0.7.1';
+import { Bot, ROLE_LABEL } from './ai.js?v=0.7.1';
+import { Sync, RemotePlayer } from './sync.js?v=0.7.1';
+import { Stick, Input } from './input.js?v=0.7.1';
+import { Renderer } from './render.js?v=0.7.1';
+import { Terrain, TERRAIN_HZ, REACH, HAND_MAX } from './terrain.js?v=0.7.1';
+import { Effects } from './effects.js?v=0.7.1';
+import { Items, BOMB } from './items.js?v=0.7.1';
+import { Match, RULES } from './game.js?v=0.7.1';
+import { initOnline } from './online.js?v=0.7.1';
 
 // 古い端末向け: 角の丸い四角が描けないときの代わり
 if (!CanvasRenderingContext2D.prototype.roundRect) {

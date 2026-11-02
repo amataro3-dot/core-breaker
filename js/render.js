@@ -1,6 +1,6 @@
 // 画面に描く(ゲーム画面とミニマップ)
-import { T, SOLID, COLORS as C, VIEW_TILES_X } from './config.js?v=0.7';
-import { REACH } from './terrain.js?v=0.7';
+import { T, SOLID, COLORS as C, VIEW_TILES_X } from './config.js?v=0.7.1';
+import { REACH } from './terrain.js?v=0.7.1';
 
 // 遠くのビル(背景の飾り)。毎回同じ形にする
 function makeSkyline() {
