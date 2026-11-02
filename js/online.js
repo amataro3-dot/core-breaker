@@ -1,8 +1,8 @@
 // みんなで遊ぶ: 名前・部屋を作る/入る・ロビーの画面。
 // 部屋のしくみは js/lobby.js、データベースは js/net.js。
 // URLに ?fake=1 をつけると、にせもののデータベースで動く(画面のテスト用)。
-import { connectFirebase, createFakeStore, fakeDb } from './net.js?v=0.7.1';
-import { Room, cleanName } from './lobby.js?v=0.7.1';
+import { connectFirebase, createFakeStore, fakeDb } from './net.js?v=0.7.2';
+import { Room, cleanName } from './lobby.js?v=0.7.2';
 
 const LEVEL_LABEL = { weak: 'よわい', normal: 'ふつう', strong: 'つよい' };
 
@@ -242,6 +242,13 @@ export function initOnline(api) {
   });
 
   return {
+    // 戻るボタンから: 試合を止めて部屋を出て、「みんなで遊ぶ」の画面へ
+    async leaveToEntry() {
+      endMatch();
+      if (room) { const r = room; room = null; await r.leave(); }
+      api.showScreen('online');
+      msg('online-msg', '部屋を出ました', true);
+    },
     get room() { return room; },
     get isHost() { return !!room && room.isHost; },
     get db() { return db; },

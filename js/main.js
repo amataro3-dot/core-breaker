@@ -1,18 +1,18 @@
 // 入口: 最初の画面、ひとりで遊ぶ(AI戦)、みんなで遊ぶ(部屋・ロビー。js/online.js)
 // 試合の前に人数(1対1 / 2対2 / 4対4)と強さを選ぶ。自分以外はAI
 // みんなで遊ぶ: ホストのスマホが試合を計算して、ほかの人に送る(js/sync.js)
-import { STEP, T, COLORS as C } from './config.js?v=0.7.1';
-import { buildMap } from './map.js?v=0.7.1';
-import { Player, hitsSolid } from './player.js?v=0.7.1';
-import { Bot, ROLE_LABEL } from './ai.js?v=0.7.1';
-import { Sync, RemotePlayer } from './sync.js?v=0.7.1';
-import { Stick, Input } from './input.js?v=0.7.1';
-import { Renderer } from './render.js?v=0.7.1';
-import { Terrain, TERRAIN_HZ, REACH, HAND_MAX } from './terrain.js?v=0.7.1';
-import { Effects } from './effects.js?v=0.7.1';
-import { Items, BOMB } from './items.js?v=0.7.1';
-import { Match, RULES } from './game.js?v=0.7.1';
-import { initOnline } from './online.js?v=0.7.1';
+import { STEP, T, COLORS as C } from './config.js?v=0.7.2';
+import { buildMap } from './map.js?v=0.7.2';
+import { Player, hitsSolid } from './player.js?v=0.7.2';
+import { Bot, ROLE_LABEL } from './ai.js?v=0.7.2';
+import { Sync, RemotePlayer } from './sync.js?v=0.7.2';
+import { Stick, Input } from './input.js?v=0.7.2';
+import { Renderer } from './render.js?v=0.7.2';
+import { Terrain, TERRAIN_HZ, REACH, HAND_MAX } from './terrain.js?v=0.7.2';
+import { Effects } from './effects.js?v=0.7.2';
+import { Items, BOMB } from './items.js?v=0.7.2';
+import { Match, RULES } from './game.js?v=0.7.2';
+import { initOnline } from './online.js?v=0.7.2';
 
 // 古い端末向け: 角の丸い四角が描けないときの代わり
 if (!CanvasRenderingContext2D.prototype.roundRect) {
@@ -184,6 +184,19 @@ let mode = 'solo'; // 'solo'(ひとりで) か 'online'(みんなで)
 const SCREENS = ['title', 'setup', 'online', 'lobby', 'result'];
 function showScreen(id) {
   for (const s of SCREENS) $(s).classList.toggle('show', s === id);
+  guardBack(id);
+}
+
+// 戻るボタンの確認(js/backguard.js)。画面ごとに、出す言葉と「はい」のときの動きを決める
+//  最初の画面・設定・みんなで → 「ホームに戻りますか？」 / ロビー → 「ルームから出ますか？」
+//  試合中 → 「ゲームをやめますか？」(ひとりは設定の画面へ、みんなでは部屋を出る)
+function guardBack(id) {
+  if (!window.BackGuard) return;
+  let inRoom = false;
+  try { inRoom = mode === 'online' && !!online.room; } catch (_) { /* online がまだできていないとき */ }
+  if (id === 'lobby' || (id === 'result' && inRoom)) BackGuard.set('room', () => online.leaveToEntry());
+  else if (id === null) BackGuard.set('game', mode === 'online' ? () => online.leaveToEntry() : () => { stopMatch(); showSetup(); });
+  else BackGuard.set('home');
 }
 
 // マップ・効果・オンラインの状態を、最初にもどす
