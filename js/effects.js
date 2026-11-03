@@ -1,6 +1,6 @@
 // 見た目だけの物理(破片、火花、爆発の光)。
 // 各スマホが自分で描くだけで、オンラインでも同期しない。
-import { T, SOLID, COLORS as C } from './config.js?v=0.8';
+import { T, SOLID, COLORS as C } from './config.js?v=0.8.1';
 
 const MAX_PARTS = 500;
 

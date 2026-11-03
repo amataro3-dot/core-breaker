@@ -7,9 +7,9 @@
 //   rooms/コード/g/round/td       変わったブロック { t番号: 種類 }
 //   rooms/コード/g/round/p/ID     それぞれの位置(1秒に10回)
 //   rooms/コード/g/round/ev/キー  ホストへの受付箱(掘る・置く・爆弾・当たり)
-import { Player } from './player.js?v=0.8';
-import { T, SOLID } from './config.js?v=0.8';
-import { BOMB, SHIELD_MAX } from './items.js?v=0.8';
+import { Player } from './player.js?v=0.8.1';
+import { T, SOLID } from './config.js?v=0.8.1';
+import { BOMB, SHIELD_MAX } from './items.js?v=0.8.1';
 
 const SEND = 0.1;       // 送る間かく(秒)
 const FX_LIFE = 1.5;    // 見た目の出来事を残す時間(秒)

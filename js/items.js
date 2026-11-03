@@ -1,7 +1,7 @@
 // 持ち物(銃・爆弾・つるはし・ブロック)と、飛んでいる弾・爆弾。
 // v0.8: ねらいアシスト、アイテム箱(中身: ショットガン・マシンガン・ライフル・C4・レーション・シールド)
-import { T, SOLID } from './config.js?v=0.8';
-import { HAND_MAX, HAND_START } from './terrain.js?v=0.8';
+import { T, SOLID } from './config.js?v=0.8.1';
+import { HAND_MAX, HAND_START } from './terrain.js?v=0.8.1';
 
 export const ITEM_LIST = ['gun', 'bomb', 'pick', 'block'];
 

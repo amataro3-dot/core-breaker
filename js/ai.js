@@ -2,16 +2,17 @@
 // 役わり: 'attack'(地上から攻め)、'tunnel'(地下から攻め)、'defend'(守り)
 // 動きは人と同じ Player の物理を使い、スティックと同じ形の入力を毎回作る。
 // 持ち物(撃つ・投げる・掘る・置く)は、自分の Items を直接使う。
-import { T, SOLID } from './config.js?v=0.8';
-import { Player } from './player.js?v=0.8';
-import { PICK } from './items.js?v=0.8';
-import { REACH } from './terrain.js?v=0.8';
+import { T, SOLID } from './config.js?v=0.8.1';
+import { Player } from './player.js?v=0.8.1';
+import { PICK } from './items.js?v=0.8.1';
+import { REACH } from './terrain.js?v=0.8.1';
 
 // 強さごとの数字
 export const SKILL = {
-  weak:   { react: 0.8,  gap: 1.1,  aimErr: 12,  sight: 11, bombErr: 1.6, bombEnemy: false },
-  normal: { react: 0.5,  gap: 0.75, aimErr: 6,   sight: 13, bombErr: 0.8, bombEnemy: false },
-  strong: { react: 0.25, gap: 0.45, aimErr: 2.5, sight: 15, bombErr: 0.3, bombEnemy: true },
+  // v0.8.1: ねらいを下手にした(ずれ・撃つ間かく・見つけてから撃つまで)。lag: 動いている相手の少し後ろをねらう(秒)
+  weak:   { react: 1.0,  gap: 1.5,  aimErr: 20, sight: 11, bombErr: 1.6, bombEnemy: false, lag: 0.25 },
+  normal: { react: 0.7,  gap: 1.0,  aimErr: 12, sight: 13, bombErr: 0.8, bombEnemy: false, lag: 0.18 },
+  strong: { react: 0.35, gap: 0.6,  aimErr: 5,  sight: 15, bombErr: 0.3, bombEnemy: true,  lag: 0.1 },
 };
 
 export const ROLE_LABEL = { attack: 'せめ', tunnel: 'ちか', defend: 'まもり' };
@@ -417,7 +418,9 @@ export class Bot extends Player {
 
     const it = this.items;
     if (this.shotT <= 0 && it.cool <= 0) {
-      this.shootAt(this.target.cx, this.target.cy - 0.1);
+      // 動いている相手は、少し後ろをねらってしまう(人と同じように、当てにくい)
+      const t = this.target;
+      this.shootAt(t.cx - (t.vx || 0) * sk.lag, t.cy - 0.1 - (t.vy || 0) * sk.lag);
     }
     // つよいAIは、敵が少し遠いと爆弾も投げる
     if (sk.bombEnemy && this.bombT <= 0 && it.throwables >= 2) {

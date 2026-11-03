@@ -1,6 +1,6 @@
 // 固定マップを作る。左右対称(左がシアン、右がピンク)。
 // 横幅80ブロック(v0.4.1で160→120、v0.6.3で120→80)。d は端からの距離
-import { T, MAP_W as W, MAP_H as H } from './config.js?v=0.8';
+import { T, MAP_W as W, MAP_H as H } from './config.js?v=0.8.1';
 
 const BASE_SURF = 18; // 陣地の地面の高さ(上から何段目か)
 
@@ -117,10 +117,9 @@ export function buildMap() {
   for (let x = 0; x < W; x++) for (let y = H - 3; y < H; y++) set(x, y, T.BEDROCK);
   for (let y = 0; y < H; y++) { set(0, y, T.BEDROCK); set(W - 1, y, T.BEDROCK); }
 
-  // 10. 地面の中のアイテム箱(v0.8。左右3個ずつ。掘って取る)
-  setBoth(20, surfAt(20) + 3, T.CRATE);       // 陣地の前の地面の中
-  setBoth(35, surfAt(35) + 3, T.CRATE);       // まん中寄りの地面の中
-  setBoth(29, tunnelBottom(29) + 3, T.CRATE); // 地下トンネルの床の下
+  // 10. アイテム箱(v0.8.1。地下トンネルの床に左右3個ずつ。上を歩くだけで取れる)
+  //     天井は、ジャンプでもタップでも届かない高さなので、床だけにした
+  for (const d of [17, 27, 37]) setBoth(d, tunnelBottom(d), T.CRATE);
 
   return {
     W, H, tiles, surf, get, set,
