@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#070b16">
 <title>CORE BREAKER</title>
-<link rel="stylesheet" href="css/style.css?v=0.7.2">
+<link rel="stylesheet" href="css/style.css?v=0.8">
 </head>
 <body>
 <div id="app">
@@ -32,13 +32,13 @@
     <div id="tip"></div>
     <div id="hurt"></div>
     <div id="dead"><div class="dead-title">やられた!</div><div>復活まで <span id="dead-count">5</span></div></div>
-    <div id="version">v0.7 対戦テスト</div>
+    <div id="version">v0.8 アイテム</div>
   </main>
 
   <section id="controls">
     <div id="items">
-      <button class="item active" type="button" data-item="gun">ピストル</button>
-      <button class="item" type="button" data-item="bomb">爆弾<span class="badge" id="bomb-count">3</span></button>
+      <button class="item active" type="button" data-item="gun" id="gun-btn"><span id="gun-name">ピストル</span><span class="badge" id="gun-ammo" hidden>0</span></button>
+      <button class="item" type="button" data-item="bomb" id="bomb-btn"><span id="bomb-name">爆弾</span><span class="badge" id="bomb-count">3</span></button>
       <button class="item" type="button" data-item="pick">つるはし</button>
       <button class="item" type="button" data-item="block">ブロック<span class="badge" id="block-count">10</span></button>
     </div>
@@ -164,7 +164,7 @@
 
 <div id="rotate">スマホを縦にしてね</div>
 
-<script src="js/backguard.js?v=0.7.2"></script>
-<script type="module" src="js/main.js?v=0.7.2"></script>
+<script src="js/backguard.js?v=0.8"></script>
+<script type="module" src="js/main.js?v=0.8"></script>
 </body>
 </html>

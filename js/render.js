@@ -1,6 +1,7 @@
 // 画面に描く(ゲーム画面とミニマップ)
-import { T, SOLID, COLORS as C, VIEW_TILES_X } from './config.js?v=0.7.2';
-import { REACH } from './terrain.js?v=0.7.2';
+import { SCOPE_LOOK } from './items.js?v=0.8';
+import { T, SOLID, COLORS as C, VIEW_TILES_X } from './config.js?v=0.8';
+import { REACH } from './terrain.js?v=0.8';
 
 // 遠くのビル(背景の飾り)。毎回同じ形にする
 function makeSkyline() {
@@ -82,6 +83,7 @@ export class Renderer {
       [T.AIR]: [5, 8, 17], [T.DIRT]: [44, 58, 92], [T.HARD]: [70, 80, 122],
       [T.BEDROCK]: [26, 32, 52], [T.SAND]: [201, 162, 74], [T.WATER]: [30, 111, 217],
       [T.LADDER]: [138, 155, 168], [T.CORE_C]: [0, 243, 255], [T.CORE_P]: [255, 51, 102],
+      [T.CRATE]: [255, 176, 32],
     };
     for (let y = 0; y < this.miniRows; y++) {
       for (let x = 0; x < map.W; x++) {
@@ -115,12 +117,18 @@ export class Renderer {
     this.shakeAmt = Math.max(this.shakeAmt, amount);
   }
 
-  updateCamera(dt, target, snap = false) {
+  // look: ライフルでねらっている向き(その方へカメラを先まで動かして、遠くを見せる)
+  updateCamera(dt, target, snap = false, look = null) {
     this.shakeAmt = Math.max(0, this.shakeAmt - dt * 1.2);
     const viewW = this.cssW / this.tile;
     const viewH = this.cssH / this.tile;
-    const tx = target.cx;
-    const ty = target.cy + viewH * 0.12; // 足もとの下(地下)まで見えるように
+    let tx = target.cx;
+    let ty = target.cy + viewH * 0.12; // 足もとの下(地下)まで見えるように
+    if (look) {
+      tx += look.x * SCOPE_LOOK;
+      ty += look.y * SCOPE_LOOK * 0.8 - viewH * 0.12 * Math.abs(look.y);
+    }
+    this.scoping = !!look;
     if (snap || !this.cam.ready) {
       this.cam.x = tx; this.cam.y = ty; this.cam.ready = true;
     } else {
@@ -134,7 +142,8 @@ export class Renderer {
   }
 
   // extras: プレイヤーのものではない弾・爆弾(オンラインで、ほかの人のもの)
-  draw(players, me, time, items, effects, extras = []) {
+  // drops: 空から落ちてくるアイテム箱
+  draw(players, me, time, items, effects, extras = [], drops = []) {
     const { ctx, map, tile } = this;
     const viewW = this.cssW / tile;
     const viewH = this.cssH / tile;
@@ -207,6 +216,7 @@ export class Renderer {
             break;
           }
           case T.LADDER: this.ladder(px, py, pw, ph); break;
+          case T.CRATE: this.crate(px, py, pw, ph, time); break;
           case T.CORE_C:
           case T.CORE_P:
             this.block(px, py, pw, ph, '#0b1424', t === T.CORE_C ? C.cyan : C.pink);
@@ -223,6 +233,7 @@ export class Renderer {
     }
 
     this.drawCores(sx, sy, time);
+    this.drawDrops(drops, sx, sy, tile, time);
     this.drawReach(me, sx, sy, tile);
     // 全員の爆弾と弾を描く(狙いの表示は自分のだけ)
     for (const p of players) if (p.items) this.drawBombs(p.items, sx, sy, tile, time);
@@ -235,8 +246,9 @@ export class Renderer {
     if (effects) this.drawEffects(effects, sx, sy, tile);
     if (items) this.drawPreview(items, sx, sy, tile);
     this.drawFlashes(sx, sy);
+    if (this.scoping) this.drawScope();
 
-    this.drawMinimap(players, me, left, top, viewW, viewH);
+    this.drawMinimap(players, me, left, top, viewW, viewH, drops);
   }
 
   // 飛んでいる爆弾(点滅するランプつき)
@@ -244,6 +256,7 @@ export class Renderer {
     const { ctx } = this;
     for (const b of items.thrown) {
       const x = sx(b.x), y = sy(b.y), r = 0.28 * tile;
+      if (b.c4) { this.drawC4(x, y, r, b, time); continue; }
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(b.spin);
@@ -349,8 +362,10 @@ export class Renderer {
       ctx.moveTo(sx(pv.x0), sy(pv.y0));
       ctx.lineTo(sx(pv.x1), sy(pv.y1));
       ctx.stroke();
+      // ねらいアシストで吸いついた敵に、四すみの印
+      if (pv.lock && !pv.lock.dead) this.drawLock(pv.lock, sx, sy, tile);
     } else if (pv.kind === 'bomb') {
-      ctx.fillStyle = 'rgba(255, 204, 0, 0.8)';
+      ctx.fillStyle = pv.c4 ? 'rgba(255, 80, 80, 0.85)' : 'rgba(255, 204, 0, 0.8)';
       for (const p of pv.points) {
         ctx.beginPath();
         ctx.arc(sx(p.x), sy(p.y), p.end ? 4 : 2.2, 0, Math.PI * 2);
@@ -531,6 +546,13 @@ export class Renderer {
     const ratio = p.hp / p.maxHp;
     ctx.fillStyle = 'rgba(0,0,0,.6)';
     ctx.fillRect(bx, by, bw, bh);
+    if (p.maxHp > 100) {
+      // シールド中: 体のまわりに六角の光、体力バーに金のふち
+      this.drawShield(x, y, w, h);
+      ctx.strokeStyle = C.crateLine;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(bx - 1, by - 1, bw + 2, bh + 2);
+    }
     ctx.fillStyle = ratio > 0.5 ? (p.team === 'cyan' ? C.cyan : C.pink) : ratio > 0.25 ? C.yellow : '#ff3b3b';
     ctx.fillRect(bx, by, bw * ratio, bh);
   }
@@ -563,7 +585,152 @@ export class Renderer {
     }
   }
 
-  drawMinimap(players, me, left, top, viewW, viewH) {
+  // アイテム箱(地面の中・着地したもの)
+  crate(px, py, pw, ph, time) {
+    const { ctx } = this;
+    const m = Math.max(1, pw * 0.08);
+    ctx.save();
+    ctx.fillStyle = C.crate;
+    ctx.fillRect(px + m, py + m, pw - m * 2, ph - m * 2);
+    ctx.strokeStyle = C.crateLine;
+    ctx.shadowColor = C.crateLine;
+    ctx.shadowBlur = 4 + 3 * (0.5 + 0.5 * Math.sin(time * 4));
+    ctx.lineWidth = Math.max(1.5, pw * 0.09);
+    ctx.strokeRect(px + m, py + m, pw - m * 2, ph - m * 2);
+    ctx.shadowBlur = 0;
+    // 帯(×)と、まん中の「?」
+    ctx.lineWidth = Math.max(1, pw * 0.06);
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(px + m * 2, py + m * 2); ctx.lineTo(px + pw - m * 2, py + ph - m * 2);
+    ctx.moveTo(px + pw - m * 2, py + m * 2); ctx.lineTo(px + m * 2, py + ph - m * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ffe08a';
+    ctx.font = `bold ${Math.round(ph * 0.62)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('?', px + pw / 2, py + ph * 0.54);
+    ctx.restore();
+  }
+
+  // 空から落ちてくる箱(パラシュートつき)
+  drawDrops(drops, sx, sy, tile, time) {
+    const { ctx } = this;
+    for (const d of drops) {
+      const sw = Math.sin(d.sway * 2.2) * 0.12;
+      const x = d.x + sw;
+      const px = sx(x - 0.5), py = sy(d.y - 0.5);
+      const pw = sx(x + 0.5) - px, ph = sy(d.y + 0.5) - py;
+      // ひもとパラシュート
+      const cx = sx(x), top = sy(d.y - 2.1);
+      const rr = tile * 1.1;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(226, 232, 240, 0.7)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(px + 1, py); ctx.lineTo(cx - rr, top);
+      ctx.moveTo(px + pw - 1, py); ctx.lineTo(cx + rr, top);
+      ctx.moveTo(cx, py); ctx.lineTo(cx, top - rr * 0.1);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255, 176, 32, 0.22)';
+      ctx.strokeStyle = C.crateLine;
+      ctx.shadowColor = C.crateLine;
+      ctx.shadowBlur = 8;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(cx, top, rr, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+      this.crate(px, py, pw, ph, time);
+    }
+  }
+
+  // C4(赤いランプの四角い箱。くっつくので回らない)
+  drawC4(x, y, r, b, time) {
+    const { ctx } = this;
+    const w = r * 2.1, h = r * 1.5;
+    ctx.save();
+    ctx.fillStyle = '#3a1418';
+    ctx.strokeStyle = '#ff5050';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#ff5050';
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.roundRect(x - w / 2, y - h / 2, w, h, 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#d9c8a0';
+    ctx.fillRect(x - w * 0.35, y - h * 0.18, w * 0.7, h * 0.36);
+    const fast = b.fuse < 1 ? 16 : 6;
+    if (Math.sin(time * fast * Math.PI) > 0) {
+      ctx.fillStyle = '#ff2b2b';
+      ctx.shadowColor = '#ff2b2b';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(x + w * 0.38, y - h * 0.5, r * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // ねらいアシストの印(敵のまわりの四すみ)
+  drawLock(p, sx, sy, tile) {
+    const { ctx } = this;
+    const pad = 0.25;
+    const x0 = sx(p.x - pad), y0 = sy(p.y - pad), x1 = sx(p.x + p.w + pad), y1 = sy(p.y + p.h + pad);
+    const k = tile * 0.35;
+    ctx.save();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = '#ff3b3b';
+    ctx.shadowColor = '#ff3b3b';
+    ctx.shadowBlur = 6;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (const [x, y, dx, dy] of [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]]) {
+      ctx.moveTo(x + dx * k, y); ctx.lineTo(x, y); ctx.lineTo(x, y + dy * k);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // シールド(体のまわりの六角形の光)
+  drawShield(x, y, w, h) {
+    const { ctx } = this;
+    const cx = x + w / 2, cy = y + h / 2, r = h * 0.68;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 176, 32, 0.75)';
+    ctx.shadowColor = '#ffb020';
+    ctx.shadowBlur = 8;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = Math.PI / 6 + (i * Math.PI) / 3;
+      const px = cx + Math.cos(a) * r * 0.78, py = cy + Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ライフルのスコープ(まわりを少し暗く)
+  drawScope() {
+    const { ctx } = this;
+    const w = this.cssW, h = this.cssH;
+    const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.75);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.55)');
+    ctx.save();
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
+
+  drawMinimap(players, me, left, top, viewW, viewH, drops = []) {
     const g = this.miniCtx;
     const W = this.mini.width, H = this.mini.height;
     const s = W / this.map.W;           // 横の1ブロック
@@ -593,6 +760,12 @@ export class Renderer {
       g.beginPath();
       g.arc(p.cx * s, (p.cy - this.miniTop) * t, Math.max(2, t * 1.2), 0, Math.PI * 2);
       g.fill();
+    }
+    // 落ちてくるアイテム箱
+    g.fillStyle = '#ffb020';
+    for (const d of drops) {
+      if (d.y < this.miniTop) continue;
+      g.fillRect(d.x * s - t, (d.y - this.miniTop) * t - t, t * 2, t * 2);
     }
     // 今見えている範囲
     g.strokeStyle = 'rgba(255,255,255,.8)';

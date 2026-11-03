@@ -1,12 +1,12 @@
 // ブロックの物理(掘る、置く、砂が落ちる、水が流れる、支えのない足場が崩れる)
 // あとでオンラインにするときは、この計算をホストだけが行い、
 // 変わったブロック(takeChanges の中身)だけを全員に送る。
-import { T } from './config.js?v=0.7.2';
+import { T } from './config.js?v=0.8';
 
 // 支えになる(崩れない)ブロック。通常ブロックは、これにつながっていれば崩れない
 // ハシゴも壁に固定されていて、支えになる
 const ANCHOR = new Uint8Array(16);
-for (const t of [T.HARD, T.BEDROCK, T.CORE_C, T.CORE_P, T.LADDER]) ANCHOR[t] = 1;
+for (const t of [T.HARD, T.BEDROCK, T.CORE_C, T.CORE_P, T.LADDER, T.CRATE]) ANCHOR[t] = 1; // アイテム箱も崩れない
 
 // 落ちてくる物に押しのけられる(入れ替わる)もの
 const OPEN = new Uint8Array(16);

@@ -551,3 +551,11 @@ html, body {
 #rotate, #rotate * { touch-action: none; }
 /* 画面の上に出る画面(最初の画面・ロビーなど)は、縦のスクロールだけできる */
 .screen, .screen *, #setup, #setup *, #result, #result * { touch-action: pan-y; }
+
+/* v0.8: 拾った銃・C4 は金色のふち */
+.item.loot { border-color: #ffb020; color: #ffcc66; box-shadow: 0 0 8px rgba(255, 176, 32, 0.45); }
+.item.loot.active { border: 2px solid #ffb020; color: #ffcc66; }
+.item .badge[hidden] { display: none; }
+/* 長い名前(ショットガン・マシンガン)が2行にならないように */
+#gun-name { white-space: nowrap; letter-spacing: -0.5px; }
+.item.loot #gun-name { font-size: 10.5px; }

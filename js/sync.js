@@ -7,9 +7,9 @@
 //   rooms/コード/g/round/td       変わったブロック { t番号: 種類 }
 //   rooms/コード/g/round/p/ID     それぞれの位置(1秒に10回)
 //   rooms/コード/g/round/ev/キー  ホストへの受付箱(掘る・置く・爆弾・当たり)
-import { Player } from './player.js?v=0.7.2';
-import { T, SOLID } from './config.js?v=0.7.2';
-import { BOMB } from './items.js?v=0.7.2';
+import { Player } from './player.js?v=0.8';
+import { T, SOLID } from './config.js?v=0.8';
+import { BOMB, SHIELD_HP } from './items.js?v=0.8';
 
 const SEND = 0.1;       // 送る間かく(秒)
 const FX_LIFE = 1.5;    // 見た目の出来事を残す時間(秒)
@@ -58,7 +58,7 @@ export class Sync {
   // hooks: { meHurt(), result(r), botFor(remote) → Bot }
   constructor(opts) {
     Object.assign(this, opts);
-    this.ghost = { bullets: [], thrown: [] }; // ほかの人の弾・ホストの爆弾(見た目)
+    this.ghost = { bullets: [], thrown: [], drops: [] }; // ほかの人の弾・ホストの爆弾と落ちてくる箱(見た目)
     this.offs = [];
     this.sendT = 0;
     this.n = 0;
@@ -67,7 +67,7 @@ export class Sync {
     this.seenFx = 0;       // ほかの人: どこまで見たか
     this.seenEv = new Set();
     this.lastShot = {};    // ほかの人: 最後に見た弾の番号
-    this.myShot = null;
+    this.myShot = [];      // 前に送ってから撃った弾(ショットガンは何発も)
     this.myShotN = 0;
     this.tdLast = {};
     this.pendingTd = {};
@@ -113,7 +113,8 @@ export class Sync {
   sendMine() {
     const m = this.me;
     const v = [r2(m.x), r2(m.y), r2(m.vx), r2(m.vy), m.facing, m.climbing ? 1 : 0, this.myShotN];
-    if (this.myShot) v.push(...this.myShot);
+    for (const s of this.myShot.slice(-8)) v.push(...s);
+    this.myShot = [];
     this.db.set(`${this.base}/p/${this.uid}`, v);
   }
 
@@ -121,7 +122,7 @@ export class Sync {
   onShot(owner, b) {
     if (owner === this.me) {
       this.myShotN++;
-      this.myShot = [r2(b.x), r2(b.y), r2(b.vx), r2(b.vy)];
+      this.myShot.push([r2(b.x), r2(b.y), r2(b.vx), r2(b.vy)]);
       this.sendT = 0; // すぐ送る
     } else if (this.isHost) {
       this.addFx('sh', r2(b.x), r2(b.y), r2(b.vx), r2(b.vy), owner.team);
@@ -136,8 +137,10 @@ export class Sync {
       if (!p.dead) p.setTarget(v[0], v[1], v[2], v[3], v[4], v[5]);
       const n = v[6] || 0;
       if (n > (this.lastShot[id] || 0)) {
-        if (this.lastShot[id] !== undefined && v.length >= 11) {
-          this.ghost.bullets.push(ghostBullet(v[7], v[8], v[9], v[10], p.team));
+        if (this.lastShot[id] !== undefined) {
+          for (let k = 7; k + 3 < v.length; k += 4) {
+            this.ghost.bullets.push(ghostBullet(v[k], v[k + 1], v[k + 2], v[k + 3], p.team));
+          }
         }
         this.lastShot[id] = n;
       }
@@ -199,7 +202,14 @@ export class Sync {
         // できなかったら、その人の画面を元にもどしてもらう
         if (!ok) this.pendingTd[`t${e.i}`] = map.tiles[e.i];
       } else if (e.k === 'bomb' && p.items && !p.dead) {
-        p.items.thrown.push({ x: e.x, y: e.y, vx: e.vx, vy: e.vy, fuse: BOMB.fuse - 0.1, spin: 0, team: p.team });
+        p.items.thrown.push(p.items.makeBomb(p, e.x, e.y, e.vx, e.vy, !!e.c, 0.1));
+      } else if (e.k === 'open') {
+        // アイテム箱を開けた(中身はその人のスマホで決まる)。箱を消す
+        const x = e.i % map.W, y = Math.floor(e.i / map.W);
+        if (map.get(x, y) === T.CRATE) terrain.setTile(x, y, T.AIR);
+      } else if (e.k === 'buff' && !p.dead) {
+        // レーション(体力全快)・シールド(体力2.5倍)
+        if (e.b === 's') { p.maxHp = SHIELD_HP; p.hp = SHIELD_HP; } else p.hp = p.maxHp;
       } else if (e.k === 'hit') {
         const t = this.byId(e.t);
         if (t && !t.dead && t.team !== p.team) match.hitPlayer(t, e.d);
@@ -217,7 +227,7 @@ export class Sync {
     else { p.vx += vx; p.vy += vy; }
   }
 
-  onBoom(b) { this.addFx('bm', r2(b.x), r2(b.y)); }
+  onBoom(b, r = BOMB.radius) { this.addFx('bm', r2(b.x), r2(b.y), r); }
 
   sendSnapshot() {
     const { match } = this.world;
@@ -230,13 +240,13 @@ export class Sync {
         k: p.remote && p.kind === 'h' ? 'h' : (p === this.me ? 'h' : 'b'),
         tm: p.team, nm: p.name,
         x: r2(p.x), y: r2(p.y), vx: r2(p.vx), vy: r2(p.vy), f: p.facing, cl: p.climbing ? 1 : 0,
-        hp: Math.round(p.hp), d: p.dead ? 1 : 0, rt: r2(p.respawnT || 0), sf: p.safeT > 0 ? 1 : 0,
+        hp: Math.round(p.hp), mh: p.maxHp, d: p.dead ? 1 : 0, rt: r2(p.respawnT || 0), sf: p.safeT > 0 ? 1 : 0,
       };
     }
     const bombs = [];
     for (const p of this.players) {
       if (!p.items) continue;
-      for (const b of p.items.thrown) bombs.push([r2(b.x), r2(b.y), r2(b.fuse), r2(b.spin)]);
+      for (const b of p.items.thrown) bombs.push([r2(b.x), r2(b.y), r2(b.fuse), r2(b.spin), b.c4 ? 1 : 0]);
     }
     const s = {
       n: ++this.n,
@@ -247,6 +257,7 @@ export class Sync {
       rp: match.cores.map((c) => (c.repairing ? 1 : 0)),
       e,
       b: bombs.length ? bombs : null,
+      dr: this.drops && this.drops.list.length ? this.drops.list.map((d) => [r2(d.x), r2(d.y), r2(d.sway)]) : null,
       fx: this.fx.length ? this.fx.map((f) => [f.id, ...f.a]) : null,
     };
     const upd = { s };
@@ -302,6 +313,7 @@ export class Sync {
       }
       if (v.d && !p.dead) effects.pop(p.cx, p.cy, p.team === 'cyan' ? '#00f3ff' : '#ff3366');
       p.hp = v.hp;
+      p.maxHp = v.mh || 100;
       p.dead = !!v.d;
       p.respawnT = v.rt;
       p.safeT = v.sf ? 1 : 0;
@@ -313,7 +325,11 @@ export class Sync {
       if (p.remote && !ids.has(p.id)) this.players.splice(i, 1);
     }
     // 爆弾(見た目)
-    this.ghost.thrown = (s.b || []).map((b) => ({ x: b[0], y: b[1], fuse: b[2], spin: b[3] }));
+    this.ghost.thrown = (s.b || []).map((b) => ({ x: b[0], y: b[1], fuse: b[2], spin: b[3], c4: b[4] === 1 }));
+    // 落ちてくるアイテム箱(見た目)。新しく出たらお知らせ
+    const dr = (s.dr || []).map((d) => ({ x: d[0], y: d[1], sway: d[2] }));
+    if (dr.length > this.ghost.drops.length && this.hooks.dropSpawned) this.hooks.dropSpawned();
+    this.ghost.drops = dr;
     // 見た目の出来事
     for (const f of s.fx || []) {
       const [id, type, ...a] = f;
@@ -321,7 +337,7 @@ export class Sync {
       this.seenFx = id;
       if (type === 'sh') this.ghost.bullets.push(ghostBullet(a[0], a[1], a[2], a[3], a[4]));
       else if (type === 'bm') {
-        effects.blast(a[0], a[1], BOMB.radius);
+        effects.blast(a[0], a[1], a[2] || BOMB.radius);
         if (Math.abs(a[0] - me.cx) < 14 && Math.abs(a[1] - me.cy) < 10) this.renderer.shake(0.3);
       } else if (type === 'kb' && a[0] === this.uid && !me.dead) {
         me.vx += a[1];
@@ -353,6 +369,7 @@ export class Sync {
       me.respawn();
       this.hooks.respawned();
     }
+    me.maxHp = v.mh || 100;
     me.hp = v.hp;
     me.respawnT = v.rt;
     if (!v.sf) me.safeT = 0;

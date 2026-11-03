@@ -11,6 +11,7 @@ export const T = {
   LADDER: 6,
   CORE_C: 7,   // シアンのコア
   CORE_P: 8,   // ピンクのコア
+  CRATE: 9,    // アイテム箱(v0.8。さわるか掘ると開く。ぶつからない)
 };
 
 // ぶつかる(通り抜けられない)ブロック
@@ -63,4 +64,6 @@ export const COLORS = {
   cyan: '#00f3ff',
   pink: '#ff3366',
   yellow: '#ffcc00',
+  crate: '#2a1c06',
+  crateLine: '#ffb020',
 };

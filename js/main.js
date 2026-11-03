@@ -1,18 +1,19 @@
 // 入口: 最初の画面、ひとりで遊ぶ(AI戦)、みんなで遊ぶ(部屋・ロビー。js/online.js)
 // 試合の前に人数(1対1 / 2対2 / 4対4)と強さを選ぶ。自分以外はAI
 // みんなで遊ぶ: ホストのスマホが試合を計算して、ほかの人に送る(js/sync.js)
-import { STEP, T, COLORS as C } from './config.js?v=0.7.2';
-import { buildMap } from './map.js?v=0.7.2';
-import { Player, hitsSolid } from './player.js?v=0.7.2';
-import { Bot, ROLE_LABEL } from './ai.js?v=0.7.2';
-import { Sync, RemotePlayer } from './sync.js?v=0.7.2';
-import { Stick, Input } from './input.js?v=0.7.2';
-import { Renderer } from './render.js?v=0.7.2';
-import { Terrain, TERRAIN_HZ, REACH, HAND_MAX } from './terrain.js?v=0.7.2';
-import { Effects } from './effects.js?v=0.7.2';
-import { Items, BOMB } from './items.js?v=0.7.2';
-import { Match, RULES } from './game.js?v=0.7.2';
-import { initOnline } from './online.js?v=0.7.2';
+import { STEP, T, COLORS as C } from './config.js?v=0.8';
+import { buildMap } from './map.js?v=0.8';
+import { Player, hitsSolid } from './player.js?v=0.8';
+import { Bot, ROLE_LABEL } from './ai.js?v=0.8';
+import { Sync, RemotePlayer } from './sync.js?v=0.8';
+import { Stick, Input } from './input.js?v=0.8';
+import { Renderer } from './render.js?v=0.8';
+import { Terrain, TERRAIN_HZ, REACH, HAND_MAX } from './terrain.js?v=0.8';
+import { Effects } from './effects.js?v=0.8';
+import { Items, BOMB, C4 } from './items.js?v=0.8';
+import { Drops } from './drops.js?v=0.8';
+import { Match, RULES } from './game.js?v=0.8';
+import { initOnline } from './online.js?v=0.8';
 
 // 古い端末向け: 角の丸い四角が描けないときの代わり
 if (!CanvasRenderingContext2D.prototype.roundRect) {
@@ -64,11 +65,19 @@ function updateItemsUI() {
   const it = me.items;
   if (!it) return;
   for (const b of itemButtons) b.classList.toggle('active', b.dataset.item === it.current);
+  // 銃: 名前と残りの弾(ピストルは数なし)。拾った銃は金色
+  $('gun-name').textContent = it.gun.name;
+  $('gun-ammo').textContent = it.ammo;
+  $('gun-ammo').hidden = it.gunKind === 'pistol';
+  $('gun-btn').classList.toggle('loot', it.gunKind !== 'pistol');
+  // 爆弾の所: C4 を持っていれば C4
+  $('bomb-name').textContent = it.c4 > 0 ? 'C4' : '爆弾';
+  $('bomb-btn').classList.toggle('loot', it.c4 > 0);
   $('hand-count').textContent = `${it.hand} / ${HAND_MAX}`;
   $('block-count').textContent = it.hand;
   $('block-count').classList.toggle('empty', it.hand === 0);
-  $('bomb-count').textContent = it.bombs;
-  $('bomb-count').classList.toggle('empty', it.bombs === 0);
+  $('bomb-count').textContent = it.throwables;
+  $('bomb-count').classList.toggle('empty', it.throwables === 0);
 }
 
 let hurtTimer = 0;
@@ -115,6 +124,10 @@ const match = new Match(map, players, {
 match.state = 'setup'; // 設定画面の間は、まだ始まっていない
 
 const world = { map, terrain, effects, players, match };
+
+// 空から落ちてくるアイテム箱(ホストと、ひとりで遊ぶときだけ計算する)
+const drops = new Drops(world, { spawned: () => showTip('アイテム箱が落ちてくる!') });
+world.drops = drops;
 
 me.items = new Items(world, {
   flash: (tx, ty, kind) => renderer.flash(tx, ty, kind),
@@ -206,6 +219,7 @@ function resetWorld() {
   terrain.changed.clear();
   terrain.dirty = true;
   effects.clear();
+  drops.reset();
   world.knock = null;
   world.onBoom = null;
   me.items.remote = null;
@@ -287,7 +301,9 @@ function startOnline(opts) {
   me.items.reset();
   sync = new Sync({
     db: opts.db, base: opts.base, uid: opts.uid, isHost: opts.isHost, world, me, renderer,
+    drops: opts.isHost ? drops : null,
     hooks: {
+      dropSpawned: () => showTip('アイテム箱が落ちてくる!'),
       meHurt: hurtFlash,
       respawned: () => renderer.updateCamera(0, me, true),
       coreBroken: (c) => match.hooks.coreBroken(c),
@@ -297,7 +313,7 @@ function startOnline(opts) {
         const bot = new Bot(old.team, old.spawn, 'attack', opts.level, world);
         bot.id = old.id;
         bot.name = ROLE_LABEL.attack;
-        bot.x = old.x; bot.y = old.y; bot.hp = old.hp; bot.dead = old.dead; bot.respawnT = old.respawnT;
+        bot.x = old.x; bot.y = old.y; bot.maxHp = old.maxHp; bot.hp = old.hp; bot.dead = old.dead; bot.respawnT = old.respawnT;
         bot.items = old.items || botItems(bot);
         bots.push(bot);
         return bot;
@@ -306,7 +322,7 @@ function startOnline(opts) {
   });
   if (opts.isHost) {
     world.knock = (p, vx, vy) => sync.knock(p, vx, vy);
-    world.onBoom = (b) => sync.onBoom(b);
+    world.onBoom = (b, r) => sync.onBoom(b, r);
   } else {
     match.remote = sync;
     me.items.remote = sync;
@@ -446,6 +462,9 @@ function step() {
   }
   if (client) { terrain.changed.clear(); terrainAcc = 0; }
 
+  // 空から落ちてくるアイテム箱(ホストでない人は、ホストから届く)
+  if (!client) drops.update(STEP);
+
   // 動き・持ち物・試合
   const playing = match.state === 'play';
   const inp = playing ? input.read() : (input.read(), NO_INPUT);
@@ -478,8 +497,9 @@ function frame(now) {
     acc -= STEP;
   }
   effects.update(dt);
-  renderer.updateCamera(dt, me);
-  renderer.draw(players, me, time, me.items, effects, sync ? [sync.ghost] : []);
+  renderer.updateCamera(dt, me, false, me.dead ? null : me.items.scope);
+  const dropList = sync && !sync.isHost ? sync.ghost.drops : drops.list;
+  renderer.draw(players, me, time, me.items, effects, sync ? [sync.ghost] : [], dropList);
   updateHud();
   requestAnimationFrame(frame);
 }
@@ -491,7 +511,7 @@ requestAnimationFrame(frame);
 
 // テスト用(画面の確認に使う)。sim(秒) で早送りできる
 window.__cb = {
-  map, me, bots, players, input, renderer, terrain, effects, match, settings, hitsSolid, BOMB, newMatch, online,
+  map, me, bots, players, input, renderer, terrain, effects, match, settings, hitsSolid, BOMB, C4, drops, newMatch, online,
   get sync() { return sync; },
   sim(sec) { for (let i = 0; i < sec / STEP; i++) { step(); effects.update(STEP); } },
 };

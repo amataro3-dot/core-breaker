@@ -1,5 +1,5 @@
 // プレイヤーの動き(移動、ジャンプ、ハシゴ、水)
-import { T, SOLID, PHYS } from './config.js?v=0.7.2';
+import { T, SOLID, PHYS } from './config.js?v=0.8';
 
 const EPS = 1e-4;
 
@@ -57,6 +57,7 @@ export class Player {
     this.climbing = false;
     this.inWater = false;
     this.facing = this.team === 'pink' ? -1 : 1;
+    this.maxHp = 100; // シールドは、やられたら消える
     this.hp = this.maxHp;
     this.dead = false;
     this.respawnT = 0; // 復活までの残り秒数

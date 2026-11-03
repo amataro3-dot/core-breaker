@@ -2,10 +2,10 @@
 // 役わり: 'attack'(地上から攻め)、'tunnel'(地下から攻め)、'defend'(守り)
 // 動きは人と同じ Player の物理を使い、スティックと同じ形の入力を毎回作る。
 // 持ち物(撃つ・投げる・掘る・置く)は、自分の Items を直接使う。
-import { T, SOLID } from './config.js?v=0.7.2';
-import { Player } from './player.js?v=0.7.2';
-import { GUN, PICK } from './items.js?v=0.7.2';
-import { REACH } from './terrain.js?v=0.7.2';
+import { T, SOLID } from './config.js?v=0.8';
+import { Player } from './player.js?v=0.8';
+import { PICK } from './items.js?v=0.8';
+import { REACH } from './terrain.js?v=0.8';
 
 // 強さごとの数字
 export const SKILL = {
@@ -66,6 +66,7 @@ export class Bot extends Player {
 
   respawn() {
     super.respawn();
+    this.crateGoal = null;
     this.climbDir = 0;
     this.target = null;
     this.seenT = 0;
@@ -114,6 +115,10 @@ export class Bot extends Player {
       return { x: this.home < 0 ? 8 : W - 8, layer: this.layer };
     }
 
+    // 近くに見えているアイテム箱があれば、取りに行く(v0.8)
+    const crate = this.nearCrate();
+    if (crate) return { x: crate.tx + 0.5, layer: crate.ty + 1 > LOWER_FEET ? 'lower' : 'upper', crate };
+
     if (this.role === 'defend') {
       // 守り: 壊れたコアの壁があれば、ふさぎに行く
       const hole = this.findHole();
@@ -137,6 +142,40 @@ export class Bot extends Player {
       if (!reached) return { x: enemyLadder + 0.5, layer: 'lower' };
     }
     return { x: siegeX, layer: 'upper', siege: true };
+  }
+
+  // 近くの、空いている所に出ているアイテム箱(0.5秒ごとに探す)。
+  // 6秒たっても取れない箱は、しばらくあきらめる
+  nearCrate() {
+    const { map } = this.world;
+    const now = this.world.match.timeLeft;
+    if (this.crateGoal) {
+      const g = this.crateGoal;
+      if (map.get(g.tx, g.ty) !== T.CRATE) this.crateGoal = null;
+      else if (g.since - now > 6) { (this.skipCrates ||= new Map()).set(g.ty * map.W + g.tx, now); this.crateGoal = null; }
+      else return g;
+    }
+    this.crateLookT = (this.crateLookT || 0) - 1;
+    if (this.crateLookT > 0) return null;
+    this.crateLookT = 30;
+    // 守りは、コアの近くの箱だけ
+    const range = this.role === 'defend' ? 5 : 9;
+    const fx = Math.floor(this.cx), fy = Math.floor(this.y + this.h - 0.5);
+    let best = null, bestD = Infinity;
+    for (let ty = fy - 5; ty <= fy + 3; ty++) {
+      for (let tx = fx - range; tx <= fx + range; tx++) {
+        if (map.get(tx, ty) !== T.CRATE) continue;
+        const skip = this.skipCrates && this.skipCrates.get(ty * map.W + tx);
+        if (skip !== undefined && skip - now < 15) continue;
+        // 空いている所に面しているか(埋まっている箱は、たまたま近くを掘ったときだけ)
+        const open = [[1, 0], [-1, 0], [0, -1], [0, 1]].some(([dx, dy]) => !SOLID[map.get(tx + dx, ty + dy)]);
+        if (!open) continue;
+        const d = Math.abs(tx + 0.5 - this.cx) + Math.abs(ty - fy) * 1.5;
+        if (d < bestD) { best = { tx, ty }; bestD = d; }
+      }
+    }
+    if (best) { best.since = now; this.crateGoal = best; }
+    return best;
   }
 
   // 自分のコアのまわりで、空いてしまった壁(ふさぐ場所)
@@ -278,7 +317,7 @@ export class Bot extends Player {
       }
       if (t === T.HARD && row !== feetRow) {
         // 下がってから爆弾を投げる
-        if (this.bombT <= 0 && it.bombs > 0) {
+        if (this.bombT <= 0 && it.throwables > 0) {
           this.throwAt(fx + 0.5, row + 0.5, 0.2);
           this.bombT = 3;
         } else if (this.retreatT <= 0) {
@@ -328,7 +367,7 @@ export class Bot extends Player {
       }
     }
     // 爆弾を投げる(コアの真上に落ちるように)
-    if (this.bombT <= 0 && it.bombs > 0 && this.onGround) {
+    if (this.bombT <= 0 && it.throwables > 0 && this.onGround) {
       if (this.throwAt(ecx, ecy - 1.5, this.skill.bombErr)) this.bombT = 2.6;
       else this.bombT = 0.5;
     }
@@ -381,7 +420,7 @@ export class Bot extends Player {
       this.shootAt(this.target.cx, this.target.cy - 0.1);
     }
     // つよいAIは、敵が少し遠いと爆弾も投げる
-    if (sk.bombEnemy && this.bombT <= 0 && it.bombs >= 2) {
+    if (sk.bombEnemy && this.bombT <= 0 && it.throwables >= 2) {
       const d = Math.abs(this.target.cx - this.cx);
       if (d > 4.5 && d < 9) {
         if (this.throwAt(this.target.cx, this.target.cy, 0.6)) this.bombT = 5;
@@ -398,15 +437,14 @@ export class Bot extends Player {
     ang += ((Math.random() + Math.random() - 1) * this.skill.aimErr * Math.PI) / 180;
     it.current = 'gun';
     this.facing = Math.cos(ang) >= 0 ? 1 : -1;
-    it.fire(this, { x: Math.cos(ang), y: Math.sin(ang), mag: 1 });
-    it.cool = GUN.cool;
+    it.shoot(this, { x: Math.cos(ang), y: Math.sin(ang), mag: 1 }); // 拾った銃も使う(弾が減る)
     this.shotT = this.skill.gap * rand(0.8, 1.25);
   }
 
   // 爆弾を (x, y) の近くに落ちるように投げる。投げたら true
   throwAt(x, y, err) {
     const it = this.items;
-    if (it.bombs <= 0) return false;
+    if (it.throwables <= 0) return false;
     x += rand(-err, err);
     const dir = Math.sign(x - this.cx) || this.facing;
     let best = null, bestScore = Infinity;
