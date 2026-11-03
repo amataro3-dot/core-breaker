@@ -1,5 +1,5 @@
 // プレイヤーの動き(移動、ジャンプ、ハシゴ、水)
-import { T, SOLID, PHYS } from './config.js?v=0.8.1';
+import { T, SOLID, PHYS } from './config.js?v=0.9';
 
 const EPS = 1e-4;
 
@@ -32,6 +32,14 @@ function isLadderTop(map, tx, ty) {
   return map.get(tx, ty) === T.LADDER && map.get(tx, ty - 1) !== T.LADDER;
 }
 
+// ダッシュ(v0.9): 左スティックを横にいっぱい倒すと速くなる。ゲージ満タンで3秒、からっぽから4秒でたまる
+export const DASH = {
+  mult: 1.6,       // 歩く速さの何倍か
+  use: 1 / 3,      // 1秒にへる量(満タン = 1)
+  refill: 1 / 4,   // 走っていないときに1秒にたまる量
+  restart: 0.3,    // からっぽになったら、ここまでたまるまで使えない
+};
+
 const approach = (v, target, step) =>
   v < target ? Math.min(v + step, target) : Math.max(v - step, target);
 
@@ -57,6 +65,9 @@ export class Player {
     this.climbing = false;
     this.inWater = false;
     this.facing = this.team === 'pink' ? -1 : 1;
+    this.dashG = 1;       // ダッシュのゲージ(0〜1)
+    this.dashTired = false;
+    this.dashing = false;
     this.hp = this.maxHp;
     this.shield = 0; // シールド(アイテム)。やられたら消える
     this.dead = false;
@@ -105,6 +116,16 @@ export class Player {
     const ax = Math.abs(input.x);
     const power = ax < 0.2 ? 0 : Math.min(1, (ax - 0.2) / 0.6);
     let maxSpeed = PHYS.move * (wet ? PHYS.waterMove : 1) * (this.climbing ? 0.6 : 1);
+    // ダッシュ: 地上と空中で使える(水の中・ハシゴはなし)
+    this.dashing = !!input.dash && power > 0 && !wet && !this.climbing && !this.dashTired && this.dashG > 0;
+    if (this.dashing) {
+      maxSpeed *= DASH.mult;
+      this.dashG = Math.max(0, this.dashG - DASH.use * dt);
+      if (this.dashG <= 0) this.dashTired = true;
+    } else {
+      this.dashG = Math.min(1, this.dashG + DASH.refill * dt);
+      if (this.dashG >= DASH.restart) this.dashTired = false;
+    }
     const target = Math.sign(input.x) * power * maxSpeed;
     const accel = this.onGround || this.climbing ? PHYS.accelGround : PHYS.accelAir;
     this.vx = approach(this.vx, target, accel * dt);

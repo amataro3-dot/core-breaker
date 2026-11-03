@@ -1,19 +1,19 @@
 // 入口: 最初の画面、ひとりで遊ぶ(AI戦)、みんなで遊ぶ(部屋・ロビー。js/online.js)
 // 試合の前に人数(1対1 / 2対2 / 4対4)と強さを選ぶ。自分以外はAI
 // みんなで遊ぶ: ホストのスマホが試合を計算して、ほかの人に送る(js/sync.js)
-import { STEP, T, COLORS as C } from './config.js?v=0.8.1';
-import { buildMap } from './map.js?v=0.8.1';
-import { Player, hitsSolid } from './player.js?v=0.8.1';
-import { Bot, ROLE_LABEL } from './ai.js?v=0.8.1';
-import { Sync, RemotePlayer } from './sync.js?v=0.8.1';
-import { Stick, Input } from './input.js?v=0.8.1';
-import { Renderer } from './render.js?v=0.8.1';
-import { Terrain, TERRAIN_HZ, REACH, HAND_MAX } from './terrain.js?v=0.8.1';
-import { Effects } from './effects.js?v=0.8.1';
-import { Items, BOMB, C4, SHIELD_MAX } from './items.js?v=0.8.1';
-import { Drops } from './drops.js?v=0.8.1';
-import { Match, RULES } from './game.js?v=0.8.1';
-import { initOnline } from './online.js?v=0.8.1';
+import { STEP, T, COLORS as C } from './config.js?v=0.9';
+import { buildMap } from './map.js?v=0.9';
+import { Player, hitsSolid } from './player.js?v=0.9';
+import { Bot, ROLE_LABEL } from './ai.js?v=0.9';
+import { Sync, RemotePlayer } from './sync.js?v=0.9';
+import { Stick, Input } from './input.js?v=0.9';
+import { Renderer } from './render.js?v=0.9';
+import { Terrain, TERRAIN_HZ, REACH, HAND_MAX } from './terrain.js?v=0.9';
+import { Effects } from './effects.js?v=0.9';
+import { Items, BOMB, C4, SHIELD_MAX } from './items.js?v=0.9';
+import { Drops } from './drops.js?v=0.9';
+import { Match, RULES } from './game.js?v=0.9';
+import { initOnline } from './online.js?v=0.9';
 
 // 古い端末向け: 角の丸い四角が描けないときの代わり
 if (!CanvasRenderingContext2D.prototype.roundRect) {
@@ -373,6 +373,17 @@ const online = initOnline({
 });
 
 // ---- 操作 ----
+// SHOT ボタン: 押している間、いちばん近い敵へ自動で撃つ
+{
+  const shotBtn = $('shot');
+  const setShot = (on) => { input.shotHeld = on; shotBtn.classList.toggle('on', on); };
+  shotBtn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    try { shotBtn.setPointerCapture(e.pointerId); } catch (_) { /* 古い端末では無視 */ }
+    setShot(true);
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) shotBtn.addEventListener(ev, () => setShot(false));
+}
 for (const b of itemButtons) {
   b.addEventListener('pointerdown', (e) => {
     e.preventDefault();
@@ -435,6 +446,13 @@ function updateHud() {
   const fill = $('hp-fill');
   fill.classList.toggle('mid', me.hp / me.maxHp <= 0.5 && me.hp / me.maxHp > 0.25);
   fill.classList.toggle('low', me.hp / me.maxHp <= 0.25);
+
+  // ダッシュのゲージ(左スティックのまわりの輪)
+  const ring = $('dash-ring');
+  const g = `${Math.round(me.dashG * 100)}%`;
+  if (hudCache.dashG !== g) { hudCache.dashG = g; ring.style.setProperty('--g', g); }
+  ring.classList.toggle('tired', me.dashTired);
+  ring.classList.toggle('dashing', me.dashing);
 
   $('dead').classList.toggle('show', me.dead && match.state === 'play');
   if (me.dead) setText('dead-count', String(Math.max(1, Math.ceil(me.respawnT))));

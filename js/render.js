@@ -1,7 +1,7 @@
 // 画面に描く(ゲーム画面とミニマップ)
-import { SCOPE_LOOK, SHIELD_MAX } from './items.js?v=0.8.1';
-import { T, SOLID, COLORS as C, VIEW_TILES_X } from './config.js?v=0.8.1';
-import { REACH } from './terrain.js?v=0.8.1';
+import { SCOPE_LOOK, SHIELD_MAX } from './items.js?v=0.9';
+import { T, SOLID, COLORS as C, VIEW_TILES_X } from './config.js?v=0.9';
+import { REACH } from './terrain.js?v=0.9';
 
 // 遠くのビル(背景の飾り)。毎回同じ形にする
 function makeSkyline() {
@@ -511,6 +511,25 @@ export class Renderer {
     const x = sx(p.x), y = sy(p.y);
     const w = p.w * tile, h = p.h * tile;
     const r = w * 0.3;
+
+    // ダッシュ中: うしろに光のすじ
+    if (p.dashing) {
+      ctx.save();
+      ctx.strokeStyle = C.yellow;
+      ctx.shadowColor = C.yellow;
+      ctx.shadowBlur = 6;
+      ctx.lineWidth = 1.5;
+      ctx.globalAlpha = 0.7;
+      const back = -p.facing;
+      const bx0 = p.facing > 0 ? x : x + w;
+      ctx.beginPath();
+      for (const [k, len] of [[0.3, 0.9], [0.55, 1.3], [0.8, 0.8]]) {
+        ctx.moveTo(bx0 + back * w * 0.15, y + h * k);
+        ctx.lineTo(bx0 + back * w * len, y + h * k);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
 
     // 体
     ctx.save();

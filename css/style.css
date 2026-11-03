@@ -517,15 +517,36 @@ html, body {
 .stick.held .stick-base { border-color: var(--cyan); }
 .stick-label { font-size: 11px; color: var(--muted); }
 
-#dash {
-  width: 58px;
-  height: 58px;
+/* SHOT ボタン(v0.9): 押すと、いちばん近い敵へ自動で撃つ */
+#shot {
+  width: 62px;
+  height: 62px;
   border-radius: 50%;
-  border: 2px solid var(--yellow);
-  background: var(--panel);
-  color: var(--yellow);
-  font: 700 11px/1 ui-monospace, monospace;
+  border: 2px solid var(--pink);
+  background: radial-gradient(circle at 40% 35%, #3a1426, #1a0a14 70%);
+  color: var(--pink);
+  font: 800 12px/1 ui-monospace, monospace;
+  letter-spacing: 1px;
+  box-shadow: 0 0 12px rgba(255, 51, 102, 0.35);
+  touch-action: none;
 }
+#shot.on { background: var(--pink); color: #12060c; box-shadow: 0 0 18px rgba(255, 51, 102, 0.7); }
+
+/* ダッシュのゲージ(左スティックのまわりの輪。へると短くなる。からっぽになると灰色) */
+#dash-ring { --g: 100%; isolation: isolate; }
+#dash-ring::before {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  z-index: -1;
+  background: conic-gradient(var(--yellow) var(--g), rgba(255, 204, 0, 0.12) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+  filter: drop-shadow(0 0 3px var(--yellow));
+}
+#dash-ring.tired::before { background: conic-gradient(#6b7699 var(--g), rgba(107, 118, 153, 0.15) 0); filter: none; }
+#dash-ring.dashing::before { filter: drop-shadow(0 0 6px var(--yellow)); }
 
 /* まだ使えない部品 */
 .soon { opacity: .35; }

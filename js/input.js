@@ -1,6 +1,7 @@
 // 画面のスティック(指で動かす操作)
 
 export const AIM_DEAD = 0.25; // これより小さく倒しただけなら「狙っていない」
+export const DASH_TILT = 0.88; // 左スティックを横にこれ以上倒したらダッシュ(v0.9)
 // 照準線が指の向きに追いつく速さ(大きいほど速い)。約0.15秒でほぼ追いつく
 const AIM_FOLLOW = 20;
 const STEP = 1 / 60;
@@ -82,7 +83,10 @@ export class Input {
       aimHeld: false,   // 押しているか
       aim: null,        // 狙っている向き { x, y, mag }(小さく倒しただけなら null)
       release: null,    // 離した瞬間だけ { aim(null ならタップ) , cancel }
+      dash: false,      // 左スティックを横にいっぱい倒している(ダッシュ)
+      shotHeld: false,  // SHOT ボタンを押している(いちばん近い敵へ自動で撃つ)
     };
+    this.shotHeld = false; // SHOT ボタン(main.js が入れる)
   }
 
   // 1回の計算ごとに呼ぶ
@@ -92,6 +96,8 @@ export class Input {
     s.y = this.left.y;
     // 上に倒している間はジャンプし続ける(着地するたびにまた跳ぶ)
     s.jumpHeld = this.left.y < -0.55;
+    s.dash = Math.abs(this.left.x) >= DASH_TILT;
+    s.shotHeld = this.shotHeld;
 
     const r = this.right;
     s.aimHeld = r.held;

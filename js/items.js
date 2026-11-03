@@ -1,7 +1,7 @@
 // 持ち物(銃・爆弾・つるはし・ブロック)と、飛んでいる弾・爆弾。
 // v0.8: ねらいアシスト、アイテム箱(中身: ショットガン・マシンガン・ライフル・C4・レーション・シールド)
-import { T, SOLID } from './config.js?v=0.8.1';
-import { HAND_MAX, HAND_START } from './terrain.js?v=0.8.1';
+import { T, SOLID } from './config.js?v=0.9';
+import { HAND_MAX, HAND_START } from './terrain.js?v=0.9';
 
 export const ITEM_LIST = ['gun', 'bomb', 'pick', 'block'];
 
@@ -144,6 +144,17 @@ export class Items {
     const canUse = !me.dead && this.world.match.state === 'play';
     // アイテム箱にさわったら開ける(ほかの人の分は、その人のスマホが決める)
     if (canUse && !me.remote) this.touchCrates(me);
+
+    // SHOT ボタン: 持ち物に関係なく、今の銃で、見えていていちばん近い敵へ撃つ(いなければ向いている方へ)
+    if (canUse && input.shotHeld) {
+      const g = this.gun;
+      const t = this.nearestEnemy(me, g);
+      if (t && !aim) {
+        this.preview = { kind: 'gun', ...this.gunLine(me, this.aimAt(me, t), g), ready: this.cool <= 0, lock: t };
+        me.facing = t.cx >= me.cx ? 1 : -1;
+      }
+      if (this.cool <= 0) this.shoot(me, t ? this.aimAt(me, t) : this.facingAim(me, 0));
+    }
 
     switch (canUse ? this.current : '') {
       case 'gun': {

@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#070b16">
 <title>CORE BREAKER</title>
-<link rel="stylesheet" href="css/style.css?v=0.8.1">
+<link rel="stylesheet" href="css/style.css?v=0.9">
 </head>
 <body>
 <div id="app">
@@ -32,7 +32,7 @@
     <div id="tip"></div>
     <div id="hurt"></div>
     <div id="dead"><div class="dead-title">やられた!</div><div>復活まで <span id="dead-count">5</span></div></div>
-    <div id="version">v0.8.1 アイテム</div>
+    <div id="version">v0.9 ダッシュ・SHOT</div>
   </main>
 
   <section id="controls">
@@ -44,10 +44,10 @@
     </div>
     <div id="sticks">
       <div class="stick" id="stick-left">
-        <div class="stick-base"><div class="stick-knob"></div></div>
+        <div class="stick-base" id="dash-ring"><div class="stick-knob"></div></div>
         <span class="stick-label">移動 / ジャンプ</span>
       </div>
-      <button id="dash" class="soon" type="button">DASH</button>
+      <button id="shot" type="button">SHOT</button>
       <div class="stick" id="stick-right">
         <div class="stick-base"><div class="stick-knob"></div></div>
         <span class="stick-label">狙う / 使う</span>
@@ -164,7 +164,7 @@
 
 <div id="rotate">スマホを縦にしてね</div>
 
-<script src="js/backguard.js?v=0.8.1"></script>
-<script type="module" src="js/main.js?v=0.8.1"></script>
+<script src="js/backguard.js?v=0.9"></script>
+<script type="module" src="js/main.js?v=0.9"></script>
 </body>
 </html>
