@@ -10,7 +10,7 @@ import { Stick, Input } from './input.js?v=0.8';
 import { Renderer } from './render.js?v=0.8';
 import { Terrain, TERRAIN_HZ, REACH, HAND_MAX } from './terrain.js?v=0.8';
 import { Effects } from './effects.js?v=0.8';
-import { Items, BOMB, C4 } from './items.js?v=0.8';
+import { Items, BOMB, C4, SHIELD_MAX } from './items.js?v=0.8';
 import { Drops } from './drops.js?v=0.8';
 import { Match, RULES } from './game.js?v=0.8';
 import { initOnline } from './online.js?v=0.8';
@@ -313,7 +313,7 @@ function startOnline(opts) {
         const bot = new Bot(old.team, old.spawn, 'attack', opts.level, world);
         bot.id = old.id;
         bot.name = ROLE_LABEL.attack;
-        bot.x = old.x; bot.y = old.y; bot.maxHp = old.maxHp; bot.hp = old.hp; bot.dead = old.dead; bot.respawnT = old.respawnT;
+        bot.x = old.x; bot.y = old.y; bot.shield = old.shield || 0; bot.hp = old.hp; bot.dead = old.dead; bot.respawnT = old.respawnT;
         bot.items = old.items || botItems(bot);
         bots.push(bot);
         return bot;
@@ -427,7 +427,11 @@ function updateHud() {
   $('timer').classList.toggle('hurry', t <= 30);
 
   setWidth('hp-fill', me.hp / me.maxHp);
-  setText('hp-num', String(Math.ceil(me.hp)));
+  // シールド: HP の下の細い金色のバー。数字は HP とシールドの合計
+  const sh = me.shield || 0;
+  setWidth('sh-fill', sh / SHIELD_MAX);
+  $('sh-bar').classList.toggle('on', sh > 0 && !me.dead);
+  setText('hp-num', String(Math.ceil(me.hp + sh)));
   const fill = $('hp-fill');
   fill.classList.toggle('mid', me.hp / me.maxHp <= 0.5 && me.hp / me.maxHp > 0.25);
   fill.classList.toggle('low', me.hp / me.maxHp <= 0.25);

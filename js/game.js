@@ -50,7 +50,10 @@ export class Match {
     // オンラインでホストでないとき: 当たったことをホストに知らせるだけ(体力はホストが決める)
     if (this.remote) { if (p.id) this.remote.send({ k: 'hit', t: p.id, d: Math.round(amount) }); return; }
     amount = Math.round(amount);
-    p.hp = Math.max(0, p.hp - amount);
+    // シールドがあれば、先にシールドが減る
+    const sh = Math.min(p.shield || 0, amount);
+    p.shield = (p.shield || 0) - sh;
+    p.hp = Math.max(0, p.hp - (amount - sh));
     p.hurtT = 0.25;
     this.hooks.playerHit(p, amount);
     if (p.hp <= 0) {

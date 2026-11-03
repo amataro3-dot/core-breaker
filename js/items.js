@@ -30,7 +30,7 @@ export const C4 = {
   dmgPlayer: 90, dmgRange: 4.5,
   dmgCore: 250, coreRange: 4,
 };
-export const SHIELD_HP = 250; // シールド: 体力が2.5倍(やられるまで)
+export const SHIELD_MAX = 150; // シールド: HP とは別のゲージ(150)。ダメージはシールドから先に減る。やられたら消える
 export const PICK = { rate: 0.25, range: 2.5 };
 export const BLOCK_RANGE = 3;
 export const SCOPE_LOOK = 18; // ライフル: ねらっている方へ、カメラが最大何マス先まで動くか(とどく距離30マスが見えるように)
@@ -352,7 +352,9 @@ export class Items {
     if (this.remote) this.remote.send({ k: 'open', i: ty * map.W + tx });
     effects.debris(tx, ty, T.CRATE, 6, 5);
     effects.sparks(tx + 0.5, ty + 0.5, '#ffb020', 10);
-    const kind = LOOT[Math.floor(Math.random() * LOOT.length)];
+    // HP が満タンのときは、レーションは出ない
+    const pool = me.hp >= me.maxHp ? LOOT.filter((k) => k !== 'ration') : LOOT;
+    const kind = pool[Math.floor(Math.random() * pool.length)];
     this.give(me, kind);
   }
 
@@ -367,12 +369,13 @@ export class Items {
       this.c4 = C4.max;
       this.current = 'bomb';
     } else if (kind === 'ration') {
-      // 体力はホストが決めるので、オンライン(ホストでない)はホストに頼む
+      // HP だけ満タン(シールドはもどらない)。体力はホストが決めるので、オンライン(ホストでない)はホストに頼む
       if (this.remote) this.remote.send({ k: 'buff', b: 'r' });
       else me.hp = me.maxHp;
     } else if (kind === 'shield') {
+      // シールドを150に(もう一度取っても150にもどる)
       if (this.remote) this.remote.send({ k: 'buff', b: 's' });
-      else { me.maxHp = SHIELD_HP; me.hp = SHIELD_HP; }
+      else me.shield = SHIELD_MAX;
     }
     const name = LOOT_NAME[kind];
     effects.text(me.cx, me.y - 0.7, `${name}!`, '#ffcc00');

@@ -9,7 +9,7 @@
 //   rooms/コード/g/round/ev/キー  ホストへの受付箱(掘る・置く・爆弾・当たり)
 import { Player } from './player.js?v=0.8';
 import { T, SOLID } from './config.js?v=0.8';
-import { BOMB, SHIELD_HP } from './items.js?v=0.8';
+import { BOMB, SHIELD_MAX } from './items.js?v=0.8';
 
 const SEND = 0.1;       // 送る間かく(秒)
 const FX_LIFE = 1.5;    // 見た目の出来事を残す時間(秒)
@@ -209,7 +209,7 @@ export class Sync {
         if (map.get(x, y) === T.CRATE) terrain.setTile(x, y, T.AIR);
       } else if (e.k === 'buff' && !p.dead) {
         // レーション(体力全快)・シールド(体力2.5倍)
-        if (e.b === 's') { p.maxHp = SHIELD_HP; p.hp = SHIELD_HP; } else p.hp = p.maxHp;
+        if (e.b === 's') p.shield = SHIELD_MAX; else p.hp = p.maxHp;
       } else if (e.k === 'hit') {
         const t = this.byId(e.t);
         if (t && !t.dead && t.team !== p.team) match.hitPlayer(t, e.d);
@@ -240,7 +240,7 @@ export class Sync {
         k: p.remote && p.kind === 'h' ? 'h' : (p === this.me ? 'h' : 'b'),
         tm: p.team, nm: p.name,
         x: r2(p.x), y: r2(p.y), vx: r2(p.vx), vy: r2(p.vy), f: p.facing, cl: p.climbing ? 1 : 0,
-        hp: Math.round(p.hp), mh: p.maxHp, d: p.dead ? 1 : 0, rt: r2(p.respawnT || 0), sf: p.safeT > 0 ? 1 : 0,
+        hp: Math.round(p.hp), sh: Math.round(p.shield || 0), d: p.dead ? 1 : 0, rt: r2(p.respawnT || 0), sf: p.safeT > 0 ? 1 : 0,
       };
     }
     const bombs = [];
@@ -307,13 +307,14 @@ export class Sync {
       }
       p.kind = v.k;
       p.name = v.nm;
-      if (v.hp < p.hp && !p.dead) {
-        effects.text(p.cx, p.y - 0.2, `-${p.hp - v.hp}`, '#ffffff');
+      const lost = (p.hp + (p.shield || 0)) - (v.hp + (v.sh || 0));
+      if (lost > 0 && !p.dead) {
+        effects.text(p.cx, p.y - 0.2, `-${lost}`, '#ffffff');
         p.hurtT = 0.25;
       }
       if (v.d && !p.dead) effects.pop(p.cx, p.cy, p.team === 'cyan' ? '#00f3ff' : '#ff3366');
       p.hp = v.hp;
-      p.maxHp = v.mh || 100;
+      p.shield = v.sh || 0;
       p.dead = !!v.d;
       p.respawnT = v.rt;
       p.safeT = v.sf ? 1 : 0;
@@ -354,8 +355,9 @@ export class Sync {
 
   applyMe(v) {
     const me = this.me;
-    if (v.hp < me.hp && !me.dead) {
-      this.world.effects.text(me.cx, me.y - 0.2, `-${me.hp - v.hp}`, '#ff6b6b');
+    const lost = (me.hp + (me.shield || 0)) - (v.hp + (v.sh || 0));
+    if (lost > 0 && !me.dead) {
+      this.world.effects.text(me.cx, me.y - 0.2, `-${lost}`, '#ff6b6b');
       this.hooks.meHurt();
     }
     if (v.d && !me.dead) {
@@ -369,8 +371,8 @@ export class Sync {
       me.respawn();
       this.hooks.respawned();
     }
-    me.maxHp = v.mh || 100;
     me.hp = v.hp;
+    me.shield = v.sh || 0;
     me.respawnT = v.rt;
     if (!v.sf) me.safeT = 0;
   }

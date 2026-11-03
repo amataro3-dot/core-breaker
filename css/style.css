@@ -559,3 +559,8 @@ html, body {
 /* 長い名前(ショットガン・マシンガン)が2行にならないように */
 #gun-name { white-space: nowrap; letter-spacing: -0.5px; }
 .item.loot #gun-name { font-size: 10.5px; }
+/* シールドのゲージ(HP の下の細い金色のバー。シールドがあるときだけ) */
+.hp-bars { display: flex; flex-direction: column; gap: 2px; }
+.sh-bar { width: 90px; height: 3px; border-radius: 2px; background: #2a2210; overflow: hidden; visibility: hidden; }
+.sh-bar.on { visibility: visible; box-shadow: 0 0 4px rgba(255, 176, 32, 0.6); }
+#sh-fill { height: 100%; width: 0; background: #ffb020; transition: width .15s; }

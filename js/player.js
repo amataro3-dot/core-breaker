@@ -57,8 +57,8 @@ export class Player {
     this.climbing = false;
     this.inWater = false;
     this.facing = this.team === 'pink' ? -1 : 1;
-    this.maxHp = 100; // シールドは、やられたら消える
     this.hp = this.maxHp;
+    this.shield = 0; // シールド(アイテム)。やられたら消える
     this.dead = false;
     this.respawnT = 0; // 復活までの残り秒数
     this.hurtT = 0;    // ダメージを受けて赤く光る時間

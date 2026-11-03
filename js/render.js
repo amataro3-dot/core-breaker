@@ -1,5 +1,5 @@
 // 画面に描く(ゲーム画面とミニマップ)
-import { SCOPE_LOOK } from './items.js?v=0.8';
+import { SCOPE_LOOK, SHIELD_MAX } from './items.js?v=0.8';
 import { T, SOLID, COLORS as C, VIEW_TILES_X } from './config.js?v=0.8';
 import { REACH } from './terrain.js?v=0.8';
 
@@ -542,17 +542,21 @@ export class Renderer {
     ctx.fillText(label, x + w / 2, y - 9);
     ctx.textAlign = 'start';
     const bw = Math.max(w * 1.6, 22), bh = 3;
-    const bx = x + w / 2 - bw / 2, by = y - 6;
+    const bx = x + w / 2 - bw / 2;
+    let by = y - 6;
     const ratio = p.hp / p.maxHp;
+    const sh = p.shield || 0;
+    // シールド中: 体のまわりに六角の光、体力バーの下に細い金色のバー
+    if (sh > 0) {
+      this.drawShield(x, y, w, h);
+      by -= 3;
+      ctx.fillStyle = 'rgba(0,0,0,.6)';
+      ctx.fillRect(bx, by + bh + 1, bw, 2);
+      ctx.fillStyle = C.crateLine;
+      ctx.fillRect(bx, by + bh + 1, bw * Math.min(1, sh / SHIELD_MAX), 2);
+    }
     ctx.fillStyle = 'rgba(0,0,0,.6)';
     ctx.fillRect(bx, by, bw, bh);
-    if (p.maxHp > 100) {
-      // シールド中: 体のまわりに六角の光、体力バーに金のふち
-      this.drawShield(x, y, w, h);
-      ctx.strokeStyle = C.crateLine;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(bx - 1, by - 1, bw + 2, bh + 2);
-    }
     ctx.fillStyle = ratio > 0.5 ? (p.team === 'cyan' ? C.cyan : C.pink) : ratio > 0.25 ? C.yellow : '#ff3b3b';
     ctx.fillRect(bx, by, bw * ratio, bh);
   }
